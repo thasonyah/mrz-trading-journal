@@ -44,6 +44,8 @@ function ensureAccount(userId, accountId) {
 }
 
 const defaultOptions = [
+  ['session', 'Session', ['AS', 'LO', 'NY', 'LC']],
+  ['mode', 'Mode', ['BOSe', 'CHe', 'Flip']],
   ['htfBias', 'HTF Bias', ['Bullish', 'Bearish', 'Neutral']],
   ['htfPoi', 'HTF POI', ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount']],
   ['mtfStructure', 'MTF Structure', ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range']],
@@ -53,12 +55,40 @@ const defaultOptions = [
   ['emotion', 'Emotion', ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']]
 ];
 
+const defaultAssets = [
+  ['MNQ1', 0.25, 0.5],
+  ['NQ1', 0.25, 5],
+  ['MGC1', 0.1, 1],
+  ['GC1', 0.1, 10],
+  ['XAUUSD', 0.01, 1],
+  ['MES1', 0.25, 1.25],
+  ['ES1', 0.25, 12.5],
+  ['MYM1', 1, 0.5],
+  ['MCL1', 0.01, 1]
+];
+
+function ensureUserDefaults(userId) {
+  const opt = db.prepare('INSERT OR IGNORE INTO option_sets (user_id, field_key, label, options_json) VALUES (?, ?, ?, ?)');
+  const updateOpt = db.prepare('UPDATE option_sets SET options_json=? WHERE user_id=? AND field_key=?');
+  const getOpt = db.prepare('SELECT options_json optionsJson FROM option_sets WHERE user_id=? AND field_key=?');
+  defaultOptions.forEach(([key, label, options]) => {
+    opt.run(userId, key, label, JSON.stringify(options));
+    const current = JSON.parse(getOpt.get(userId, key)?.optionsJson || '[]');
+    const merged = [...current, ...options.filter((value) => !current.includes(value))];
+    if (merged.length !== current.length) updateOpt.run(JSON.stringify(merged), userId, key);
+  });
+  const count = db.prepare('SELECT COUNT(*) count FROM asset_presets WHERE user_id=?').get(userId).count;
+  if (!count) {
+    const asset = db.prepare('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, sort_order) VALUES (?, ?, ?, ?, ?)');
+    defaultAssets.forEach(([symbol, tickSize, dollarPerPoint], index) => asset.run(userId, symbol, tickSize, dollarPerPoint, index + 1));
+  }
+}
+
 function createDefaultAccount(userId) {
   const insert = db.prepare('INSERT INTO accounts (user_id, name, type, sort_order) VALUES (?, ?, ?, ?)');
   const backtest = insert.run(userId, 'Backtest', 'backtest', 1).lastInsertRowid;
   insert.run(userId, 'Forward Test', 'forward', 2);
-  const opt = db.prepare('INSERT INTO option_sets (user_id, field_key, label, options_json) VALUES (?, ?, ?, ?)');
-  defaultOptions.forEach(([key, label, options]) => opt.run(userId, key, label, JSON.stringify(options)));
+  ensureUserDefaults(userId);
   return backtest;
 }
 
@@ -87,6 +117,7 @@ app.post('/api/auth/login', (req, res) => {
   const password = String(req.body.password || '');
   const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Invalid username or password' });
+  ensureUserDefaults(user.id);
   res.json({ token: tokenFor(user), user: { id: user.id, username: user.username, role: user.role } });
 });
 
@@ -133,6 +164,7 @@ app.delete('/api/accounts/:id', auth, (req, res) => {
 });
 
 app.get('/api/options', auth, (req, res) => {
+  ensureUserDefaults(req.user.id);
   const rows = db.prepare('SELECT field_key fieldKey, label, options_json optionsJson FROM option_sets WHERE user_id=?').all(req.user.id);
   res.json({ options: rows.map((r) => ({ fieldKey: r.fieldKey, label: r.label, options: JSON.parse(r.optionsJson) })) });
 });
@@ -148,6 +180,44 @@ app.put('/api/options/:fieldKey', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/assets', auth, (req, res) => {
+  ensureUserDefaults(req.user.id);
+  const assets = db.prepare('SELECT id, symbol, tick_size tickSize, dollar_per_point dollarPerPoint, sort_order sortOrder FROM asset_presets WHERE user_id=? ORDER BY sort_order, symbol').all(req.user.id);
+  res.json({ assets });
+});
+
+app.post('/api/assets', auth, (req, res) => {
+  const count = db.prepare('SELECT COUNT(*) count FROM asset_presets WHERE user_id=?').get(req.user.id).count;
+  const symbol = String(req.body.symbol || '').trim().toUpperCase();
+  if (!symbol) return res.status(400).json({ error: 'Asset symbol is required' });
+  const info = db.prepare('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, sort_order) VALUES (?, ?, ?, ?, ?)').run(
+    req.user.id,
+    symbol,
+    Number(req.body.tickSize || 1),
+    Number(req.body.dollarPerPoint || 1),
+    count + 1
+  );
+  res.json({ asset: db.prepare('SELECT id, symbol, tick_size tickSize, dollar_per_point dollarPerPoint, sort_order sortOrder FROM asset_presets WHERE id=?').get(info.lastInsertRowid) });
+});
+
+app.put('/api/assets/:id', auth, (req, res) => {
+  const symbol = String(req.body.symbol || '').trim().toUpperCase();
+  if (!symbol) return res.status(400).json({ error: 'Asset symbol is required' });
+  db.prepare('UPDATE asset_presets SET symbol=?, tick_size=?, dollar_per_point=? WHERE id=? AND user_id=?').run(
+    symbol,
+    Number(req.body.tickSize || 1),
+    Number(req.body.dollarPerPoint || 1),
+    req.params.id,
+    req.user.id
+  );
+  res.json({ ok: true });
+});
+
+app.delete('/api/assets/:id', auth, (req, res) => {
+  db.prepare('DELETE FROM asset_presets WHERE id=? AND user_id=?').run(req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
 app.get('/api/accounts/:accountId/trades', auth, (req, res) => {
   ensureAccount(req.user.id, req.params.accountId);
   const rows = db.prepare('SELECT * FROM trades WHERE user_id=? AND account_id=? ORDER BY trade_date DESC, entry_time DESC, id DESC').all(req.user.id, req.params.accountId);
@@ -155,8 +225,10 @@ app.get('/api/accounts/:accountId/trades', auth, (req, res) => {
 });
 
 const tradeColumns = [
-  'trade_date','asset','direction','session','entry_time','exit_time','order_wait_minutes','entry_price','stop_loss','take_profit','tick_size','dollar_per_point',
-  'planned_r','actual_r','max_r','mfe_r','mae_r','risk_amount','lot_size','pnl','result','htf_bias','htf_poi','poi_type','poi_has_fvg','fvg_position',
+  'trade_date','asset','direction','session','entry_time','exit_time','duration_time','order_wait_minutes','mode','entry_price','stop_loss','take_profit',
+  'tp_ticks','sl_ticks','tick_size','dollar_per_point','planned_r','actual_r','max_r','mfe_r','mae_r','risk_amount','lot_size','pnl','sl_amount',
+  'tp_amount','tp_percent','balance_after','con_loss','sum_con_loss_amount','dd_loss_pct','sum_dd_loss_pct','result','picture_url','tip_url',
+  'htf_bias','htf_poi','poi_type','poi_has_fvg','fvg_position',
   'liquidity_sweep','bos','choch','mtf_structure','ltf_entry','key_zone','setup_grade','setup_score','rule_violation','emotion_before','emotion_after',
   'discipline_score','chart_htf','chart_mtf','chart_ltf','notes'
 ];
@@ -170,10 +242,14 @@ function normalizeTrade(body) {
     session: b.session,
     entry_time: b.entryTime || null,
     exit_time: b.exitTime || null,
+    duration_time: b.durationTime || null,
     order_wait_minutes: b.orderWaitMinutes ?? null,
+    mode: b.mode || null,
     entry_price: b.entryPrice ?? null,
     stop_loss: b.stopLoss ?? null,
     take_profit: b.takeProfit ?? null,
+    tp_ticks: b.tpTicks ?? null,
+    sl_ticks: b.slTicks ?? null,
     tick_size: b.tickSize || 0.25,
     dollar_per_point: b.dollarPerPoint || 1,
     planned_r: b.plannedR ?? null,
@@ -184,7 +260,17 @@ function normalizeTrade(body) {
     risk_amount: b.riskAmount || 0,
     lot_size: b.lotSize || 0,
     pnl: b.pnl || 0,
+    sl_amount: b.slAmount ?? null,
+    tp_amount: b.tpAmount ?? null,
+    tp_percent: b.tpPercent ?? null,
+    balance_after: b.balanceAfter ?? null,
+    con_loss: b.conLoss ?? null,
+    sum_con_loss_amount: b.sumConLossAmount ?? null,
+    dd_loss_pct: b.ddLossPct ?? null,
+    sum_dd_loss_pct: b.sumDdLossPct ?? null,
     result: b.result,
+    picture_url: b.pictureUrl || null,
+    tip_url: b.tipUrl || null,
     htf_bias: b.htfBias || null,
     htf_poi: b.htfPoi || null,
     poi_type: b.poiType || null,
