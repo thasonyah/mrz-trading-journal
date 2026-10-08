@@ -9,6 +9,8 @@ if (exists) {
 }
 
 const defaultOptions = [
+  ['session', 'Session', ['AS', 'LO', 'NY', 'LC']],
+  ['mode', 'Mode', ['BOSe', 'CHe', 'Flip']],
   ['htfBias', 'HTF Bias', ['Bullish', 'Bearish', 'Neutral']],
   ['htfPoi', 'HTF POI', ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount']],
   ['mtfStructure', 'MTF Structure', ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range']],
@@ -16,6 +18,18 @@ const defaultOptions = [
   ['keyZone', 'Key Zone', ['Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM']],
   ['ruleViolation', 'Rule Violation', ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price']],
   ['emotion', 'Emotion', ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']]
+];
+
+const defaultAssets = [
+  ['MNQ1', 0.25, 0.5],
+  ['NQ1', 0.25, 5],
+  ['MGC1', 0.1, 1],
+  ['GC1', 0.1, 10],
+  ['XAUUSD', 0.01, 1],
+  ['MES1', 0.25, 1.25],
+  ['ES1', 0.25, 12.5],
+  ['MYM1', 1, 0.5],
+  ['MCL1', 0.01, 1]
 ];
 
 const demoTrades = [
@@ -33,6 +47,8 @@ const trx = db.transaction(() => {
   db.prepare('INSERT INTO accounts (user_id, name, type, starting_balance, sort_order) VALUES (?, ?, ?, ?, ?)').run(userId, 'Forward Test', 'forward', 50000, 2);
   const opt = db.prepare('INSERT INTO option_sets (user_id, field_key, label, options_json) VALUES (?, ?, ?, ?)');
   defaultOptions.forEach(([key, label, options]) => opt.run(userId, key, label, JSON.stringify(options)));
+  const asset = db.prepare('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, sort_order) VALUES (?, ?, ?, ?, ?)');
+  defaultAssets.forEach(([symbol, tickSize, dollarPerPoint], index) => asset.run(userId, symbol, tickSize, dollarPerPoint, index + 1));
   const trade = db.prepare(`
     INSERT INTO trades (
       user_id, account_id, trade_date, asset, direction, session, entry_time, exit_time, order_wait_minutes, entry_price, stop_loss, take_profit,
