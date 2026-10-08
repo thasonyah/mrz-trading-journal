@@ -2,7 +2,7 @@ services:
   - type: web
     name: mrz-trading-journal
     runtime: node
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /
@@ -12,10 +12,6 @@ services:
       - key: NODE_VERSION
         value: 24.14.0
       - key: DATABASE_PATH
-        value: /opt/render/project/src/data/trading-journal.sqlite
+        value: /tmp/trading-journal.sqlite
       - key: JWT_SECRET
         sync: false
-    disk:
-      name: trading-journal-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
