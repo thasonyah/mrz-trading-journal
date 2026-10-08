@@ -64,6 +64,11 @@ function useApi(token) {
   }, [token]);
 }
 
+function withUser(path, userId) {
+  if (!userId) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}userId=${userId}`;
+}
+
 function enrichTrade(input) {
   const t = { ...input };
   const entry = Number(t.entryPrice);
@@ -223,23 +228,43 @@ function groupBy(trades, key) {
 }
 
 function AuthScreen({ setSession }) {
-  const [mode, setMode] = useState('login');
+  const initialMode = location.pathname.includes('reset-password') ? 'reset' : location.pathname.includes('verify-email') ? 'verify' : 'login';
+  const [mode, setMode] = useState(initialMode);
   const [username, setUsername] = useState('demo');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('demo123');
+  const [token, setToken] = useState(new URLSearchParams(location.search).get('token') || '');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   async function submit(e) {
     e.preventDefault();
     setError('');
+    setMessage('');
     try {
-      const res = await fetch(`${API}/auth/${mode === 'login' ? 'login' : 'register'}`, {
+      const body = mode === 'login' ? { username, password }
+        : mode === 'register' ? { username, email, password }
+          : mode === 'forgot' ? { email }
+            : mode === 'verify' ? { token }
+              : { token, password };
+      const endpoint = mode === 'login' ? 'login'
+        : mode === 'register' ? 'register'
+          : mode === 'forgot' ? 'forgot-password'
+            : mode === 'verify' ? 'verify-email'
+              : 'reset-password';
+      const res = await fetch(`${API}/auth/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Auth failed');
-      localStorage.setItem('etj_token', data.token);
-      setSession(data);
+      if (data.token) {
+        localStorage.setItem('etj_token', data.token);
+        setSession(data);
+      } else {
+        setMessage(data.verificationLink || data.resetLink || data.message || 'Done');
+        if (mode === 'reset') setMode('login');
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -253,10 +278,17 @@ function AuthScreen({ setSession }) {
         <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Login</button>
         <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Sign up</button>
       </div>
-      <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-      <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+      {['login', 'register'].includes(mode) && <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>}
+      {['register', 'forgot'].includes(mode) && <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>}
+      {['verify', 'reset'].includes(mode) && <label>Token<input value={token} onChange={(e) => setToken(e.target.value)} /></label>}
+      {['login', 'register', 'reset'].includes(mode) && <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>}
       {error && <div className="error">{error}</div>}
-      <button className="primary" type="submit">{mode === 'login' ? 'Login' : 'Create Account'}</button>
+      {message && <div className="success-box">{message}</div>}
+      <button className="primary" type="submit">{mode === 'login' ? 'Login' : mode === 'register' ? 'Create Account' : mode === 'forgot' ? 'Send reset link' : mode === 'verify' ? 'Verify email' : 'Reset password'}</button>
+      <div className="auth-links">
+        <button type="button" onClick={() => setMode('forgot')}>Forgot password</button>
+        <button type="button" onClick={() => setMode('verify')}>Verify email</button>
+      </div>
     </form>
   </main>;
 }
@@ -264,28 +296,39 @@ function AuthScreen({ setSession }) {
 function App() {
   const [session, setSession] = useState(() => localStorage.getItem('etj_token') ? { token: localStorage.getItem('etj_token') } : null);
   const api = useApi(session?.token);
+  const [currentUser, setCurrentUser] = useState(session?.user || null);
+  const [viewUserId, setViewUserId] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState(null);
+  const [portfolioLimit, setPortfolioLimit] = useState(5);
   const [trades, setTrades] = useState([]);
   const [options, setOptions] = useState(defaultOptions);
   const [assets, setAssets] = useState(defaultAssets);
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState('');
 
+  const scopedUserId = currentUser?.role === 'admin' && viewUserId ? viewUserId : null;
+  const scopedApi = useMemo(() => (path, options = {}) => api(withUser(path, scopedUserId), options), [api, scopedUserId]);
+
   async function loadAll(nextAccountId = accountId) {
-    const [a, o, assetData] = await Promise.all([api('/accounts'), api('/options'), api('/assets')]);
+    const [a, o, assetData] = await Promise.all([scopedApi('/accounts'), scopedApi('/options'), scopedApi('/assets')]);
     setAccounts(a.accounts);
+    setPortfolioLimit(a.portfolioLimit || 5);
     setAssets(assetData.assets?.length ? assetData.assets : defaultAssets);
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
     setOptions({ ...defaultOptions, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options])) });
     if (active) {
-      const data = await api(`/accounts/${active}/trades`);
+      const data = await scopedApi(`/accounts/${active}/trades`);
       setTrades(data.trades);
     }
   }
-  useEffect(() => { if (session?.token) loadAll().catch(() => setSession(null)); }, [session?.token]);
+  useEffect(() => {
+    if (!session?.token) return;
+    api('/me').then((data) => setCurrentUser(data.user)).catch(() => setSession(null));
+  }, [session?.token]);
+  useEffect(() => { if (session?.token) loadAll().catch(() => setSession(null)); }, [session?.token, scopedUserId]);
   useEffect(() => { if (toast) { const id = setTimeout(() => setToast(''), 2200); return () => clearTimeout(id); } }, [toast]);
 
   if (!session?.token) return <AuthScreen setSession={setSession} />;
@@ -308,8 +351,8 @@ function App() {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="mark small">ZTJ</div><div><b>Mr.Z Trading Journal</b><span>POI to outcome</span></div></div>
-      <label className="mini-label">Account</label>
-      <select value={accountId || ''} onChange={async (e) => { setAccountId(e.target.value); const data = await api(`/accounts/${e.target.value}/trades`); setTrades(data.trades); }}>
+      <label className="mini-label">Portfolio {accounts.length}/{portfolioLimit}</label>
+      <select value={accountId || ''} onChange={async (e) => { setAccountId(e.target.value); const data = await scopedApi(`/accounts/${e.target.value}/trades`); setTrades(data.trades); }}>
         {accounts.map((a) => <option value={a.id} key={a.id}>{a.name}</option>)}
       </select>
       <nav>{nav.map(([id, Icon, label]) => <button key={id} className={page === id ? 'active' : ''} onClick={() => setPage(id)}><Icon size={17} />{label}</button>)}</nav>
@@ -320,13 +363,13 @@ function App() {
     </aside>
     <main className="workspace">
       {page === 'dashboard' && <Dashboard trades={trades} stats={stats} account={account} setPage={setPage} />}
-      {page === 'log' && <TradeForm api={api} accountId={accountId} options={options} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
-      {page === 'history' && <HistoryPage api={api} accountId={accountId} account={account} trades={trades} setTrades={setTrades} setEditing={(t) => { setEditing(t); setPage('log'); }} setToast={setToast} />}
+      {page === 'log' && <TradeForm api={scopedApi} accountId={accountId} options={options} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
+      {page === 'history' && <HistoryPage api={scopedApi} accountId={accountId} account={account} trades={trades} setTrades={setTrades} setEditing={(t) => { setEditing(t); setPage('log'); }} setToast={setToast} />}
       {page === 'calendar' && <CalendarPage trades={trades} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
-      {page === 'journal' && <JournalPage api={api} accountId={accountId} />}
-      {page === 'settings' && <SettingsPage api={api} accounts={accounts} account={account} options={options} assets={assets} reload={loadAll} setToast={setToast} />}
-      {page === 'coach' && <CoachPage api={api} />}
+      {page === 'journal' && <JournalPage api={scopedApi} accountId={accountId} />}
+      {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} reload={loadAll} setToast={setToast} />}
+      {page === 'coach' && <CoachPage api={api} currentUser={currentUser} viewUserId={viewUserId} setViewUserId={(id) => { setViewUserId(id); setPage('dashboard'); }} />}
     </main>
     {toast && <div className="toast">{toast}</div>}
   </div>;
@@ -550,7 +593,7 @@ function JournalPage({ api, accountId }) {
   return <section><Header title="Playbook" hint={saved ? `Saved ${saved}` : 'Account logic, rules, and review notes'} action={<button className="primary" onClick={save}><Save size={16} />Save note</button>} /><textarea className="playbook" value={content} onChange={(e) => setContent(e.target.value)} /></section>;
 }
 
-function SettingsPage({ api, accounts, account, options, assets, reload, setToast }) {
+function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, reload, setToast }) {
   const [name, setName] = useState(account?.name || '');
   const [balance, setBalance] = useState(account?.startingBalance || 50000);
   const [optionDrafts, setOptionDrafts] = useState({});
@@ -564,9 +607,25 @@ function SettingsPage({ api, accounts, account, options, assets, reload, setToas
     setToast('Settings saved');
   }
   async function addAccount() {
+    if (accounts.length >= portfolioLimit) {
+      setToast(`Portfolio limit reached (${portfolioLimit})`);
+      return;
+    }
     const data = await api('/accounts', { method: 'POST', body: JSON.stringify({ name: 'New Account', type: 'live', startingBalance: 50000 }) });
     await reload(data.id);
-    setToast('Account created');
+    setToast('Portfolio created');
+  }
+  async function deleteAccount(id) {
+    if (!confirm('Delete this portfolio and all trades inside it?')) return;
+    await api(`/accounts/${id}`, { method: 'DELETE' });
+    await reload();
+    setToast('Portfolio deleted');
+  }
+  async function resetAccount(id) {
+    if (!confirm('Reset this portfolio? All trades and playbook notes inside it will be removed.')) return;
+    await api(`/accounts/${id}/reset`, { method: 'POST' });
+    await reload(id);
+    setToast('Portfolio reset');
   }
   async function saveOption(key) {
     const values = String(optionDrafts[key] || '').split('\n').map((value) => value.trim()).filter(Boolean);
@@ -592,20 +651,45 @@ function SettingsPage({ api, accounts, account, options, assets, reload, setToas
   function updateAsset(index, key, value) {
     setAssetDrafts(assetDrafts.map((asset, i) => i === index ? { ...asset, [key]: value } : asset));
   }
-  return <section><Header title="Settings" hint="Accounts and customizable field options" action={<button onClick={addAccount}><Plus size={16} />New account</button>} />
-    <div className="grid two"><Panel title="Account Management"><div className="form-grid"><Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} /></Field></div><button className="primary" onClick={saveAccount}><Save size={16} />Save account</button></Panel>
+  return <section><Header title="Settings" hint={`Portfolios, presets, and customizable field options (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />New portfolio</button>} />
+    <div className="grid two"><Panel title="Portfolio Management"><div className="form-grid"><Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} /></Field></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
     <Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel></div>
     <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)}><Save size={14} />Save {key}</button></div>)}</div></Panel></section>;
 }
 
-function CoachPage({ api }) {
+function CoachPage({ api, currentUser, viewUserId, setViewUserId }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(null);
   async function load() {
     setError('');
     try { setRows((await api('/admin/team')).users); } catch (err) { setError(err.message); }
   }
-  return <section><Header title="Coach View" hint="Read-only team overview for admin/coach users" action={<button onClick={load}><Shield size={16} />Refresh</button>} />{error && <div className="empty">{error}</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Trades</th><th>Net P&L</th></tr></thead><tbody>{rows.map((r) => <tr key={r.id}><td>{r.username}</td><td>{r.role}</td><td>{r.totalTrades}</td><td className={r.netPnl >= 0 ? 'pos' : 'neg'}>{money(r.netPnl)}</td></tr>)}</tbody></table></div></section>;
+  useEffect(() => { load(); }, []);
+  function updateRow(id, key, value) {
+    setRows(rows.map((row) => row.id === id ? { ...row, [key]: value } : row));
+  }
+  async function save(row) {
+    setSaving(row.id);
+    try {
+      const data = await api(`/admin/users/${row.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          role: row.role,
+          status: row.status,
+          portfolioLimit: row.portfolioLimit,
+          emailVerified: row.emailVerified
+        })
+      });
+      setRows(rows.map((item) => item.id === row.id ? { ...item, ...data.user } : item));
+    } finally {
+      setSaving(null);
+    }
+  }
+  if (!['coach', 'admin'].includes(currentUser?.role)) {
+    return <section><Header title="Admin" hint="Admin and coach users only" /><div className="empty">No admin access for this account.</div></section>;
+  }
+  return <section><Header title="Admin" hint="Manage users, permissions, email verification, and portfolio access" action={<button onClick={load}><Shield size={16} />Refresh</button>} />{error && <div className="empty">{error}</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Verified</th><th>Portfolios</th><th>Trades</th><th>Net P&L</th><th></th></tr></thead><tbody>{rows.map((r) => <tr key={r.id} className={viewUserId === r.id ? 'selected' : ''}><td><b>{r.username}</b></td><td>{r.email || '-'}</td><td><select value={r.role} onChange={(e) => updateRow(r.id, 'role', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="trader">trader</option><option value="coach">coach</option><option value="admin">admin</option></select></td><td><select value={r.status || 'active'} onChange={(e) => updateRow(r.id, 'status', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="active">active</option><option value="suspended">suspended</option></select></td><td><label className="table-check"><input type="checkbox" checked={!!r.emailVerified} onChange={(e) => updateRow(r.id, 'emailVerified', e.target.checked)} disabled={currentUser?.role !== 'admin'} />Yes</label></td><td><input className="tiny-input" type="number" min="1" max="5" value={r.portfolioLimit || 5} onChange={(e) => updateRow(r.id, 'portfolioLimit', e.target.value)} disabled={currentUser?.role !== 'admin'} /> <small>{r.portfolios || 0} used</small></td><td>{r.totalTrades}</td><td className={r.netPnl >= 0 ? 'pos' : 'neg'}>{money(r.netPnl)}</td><td className="row-actions"><button onClick={() => setViewUserId(r.id)}><UserRound size={14} />Open</button>{currentUser?.role === 'admin' && <button onClick={() => save(r)} disabled={saving === r.id}><Save size={14} />Save</button>}</td></tr>)}</tbody></table></div></section>;
 }
 
 function Header({ title, hint, action }) { return <div className="page-head"><div><h1>{title}</h1><p>{hint}</p></div>{action}</div>; }
