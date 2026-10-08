@@ -42,7 +42,7 @@ const demoTrades = [
 ];
 
 const trx = db.transaction(() => {
-  const userId = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run('demo', bcrypt.hashSync('demo123', 10), 'admin').lastInsertRowid;
+  const userId = db.prepare('INSERT INTO users (username, email, password_hash, role, email_verified, portfolio_limit) VALUES (?, ?, ?, ?, ?, ?)').run('demo', 'demo@mrz.local', bcrypt.hashSync('demo123', 10), 'admin', 1, 5).lastInsertRowid;
   const accountId = db.prepare('INSERT INTO accounts (user_id, name, type, starting_balance, sort_order) VALUES (?, ?, ?, ?, ?)').run(userId, 'Backtest', 'backtest', 50000, 1).lastInsertRowid;
   db.prepare('INSERT INTO accounts (user_id, name, type, starting_balance, sort_order) VALUES (?, ?, ?, ?, ?)').run(userId, 'Forward Test', 'forward', 50000, 2);
   const opt = db.prepare('INSERT INTO option_sets (user_id, field_key, label, options_json) VALUES (?, ?, ?, ?)');
