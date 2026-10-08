@@ -4,9 +4,10 @@ A runnable trading journal rebuilt from observed behavior, not copied code. It k
 
 ## Features
 
-- Username/password authentication with JWT
-- SQLite database with migration in `migrations/001_initial.sql`
-- Account management for Backtest, Forward Test, and Live-style datasets
+- Email + password authentication with JWT, email verification, and password reset links
+- SQLite database with migrations in `migrations/`
+- Portfolio management for Backtest, Forward Test, and Live-style datasets, limited to 5 portfolios per user by default
+- Admin user management for roles, status, email verification, portfolio limits, and opening any user's portfolios
 - Add/edit/delete trades with automatic risk, lot, planned RR, result R, and P&L calculation
 - Market structure fields: HTF bias/POI, POI type, FVG position, Liquidity Sweep, BOS, CHoCH, MTF Structure, LTF Entry, Key Zone
 - Psychology fields: rule violation, emotion before/after, discipline score, reflection
@@ -33,7 +34,7 @@ password: demo123
 
 ## Configuration
 
-Copy `.env.example` to `.env` if you want to change the API port, JWT secret, or database file.
+Copy `.env.example` to `.env` if you want to change the API port, JWT secret, database file, public URL, or SMTP email settings.
 
 ```bash
 cp .env.example .env
@@ -69,9 +70,18 @@ Render environment variables:
 NODE_ENV=production
 DATABASE_PATH=/opt/render/project/src/data/trading-journal.sqlite
 JWT_SECRET=<set in Render dashboard>
+PUBLIC_BASE_URL=https://your-render-service.onrender.com
+SMTP_HOST=<optional SMTP host>
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<optional SMTP username>
+SMTP_PASS=<optional SMTP password>
+MAIL_FROM=<optional from email>
 ```
 
 Important: the included `render.yaml` uses a persistent disk for SQLite. On Render, persistent disks may require a paid plan. Without a disk, the app can run, but journal data can be lost when the service restarts or redeploys.
+
+If SMTP is not configured, the app still works for testing: registration and password reset responses include a one-time verification/reset link, and the server logs the same link. Configure SMTP before using the system with real users.
 
 ## Calculation Notes
 
