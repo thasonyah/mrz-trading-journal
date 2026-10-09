@@ -598,6 +598,7 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
   const [balance, setBalance] = useState(account?.startingBalance || 50000);
   const [optionDrafts, setOptionDrafts] = useState({});
   const [assetDrafts, setAssetDrafts] = useState([]);
+  const [savingOption, setSavingOption] = useState('');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   useEffect(() => { setName(account?.name || ''); setBalance(account?.startingBalance || 50000); }, [account?.id]);
   useEffect(() => setOptionDrafts(Object.fromEntries(Object.entries(options).map(([key, vals]) => [key, vals.join('\n')]))), [options]);
@@ -641,10 +642,17 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     setToast('Password changed');
   }
   async function saveOption(key) {
-    const values = String(optionDrafts[key] || '').split('\n').map((value) => value.trim()).filter(Boolean);
-    await api(`/options/${key}`, { method: 'PUT', body: JSON.stringify({ label: key, options: values }) });
-    await reload(account.id);
-    setToast('Options saved');
+    const values = [...new Set(String(optionDrafts[key] || '').split('\n').map((value) => value.trim()).filter(Boolean))];
+    setSavingOption(key);
+    try {
+      await api(`/options/${key}`, { method: 'PUT', body: JSON.stringify({ label: key, options: values }) });
+      await reload(account.id);
+      setToast('Options saved');
+    } catch (error) {
+      setToast(error.message || 'Could not save options');
+    } finally {
+      setSavingOption('');
+    }
   }
   async function saveAsset(asset) {
     if (asset.id) await api(`/assets/${asset.id}`, { method: 'PUT', body: JSON.stringify(asset) });
@@ -669,7 +677,7 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     <Panel title="Security"><div className="form-grid"><Field label="Current password"><input type="password" value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} /></Field><Field label="New password"><input type="password" value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} /></Field><Field label="Confirm password"><input type="password" value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
     <Panel title="Account note"><div className="empty compact-empty">Use Security to update your own password. Admins can manage roles, status, and portfolio limits from the Admin page.</div></Panel></div>
-    <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)}><Save size={14} />Save {key}</button></div>)}</div></Panel></section>;
+    <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)} disabled={savingOption === key}><Save size={14} />{savingOption === key ? 'Saving...' : `Save ${key}`}</button></div>)}</div></Panel></section>;
 }
 
 function CoachPage({ api, token, currentUser, viewUserId, setViewUserId }) {
