@@ -273,7 +273,7 @@ function AuthScreen({ setSession }) {
     <form className="auth-card" onSubmit={submit}>
       <div className="mark">ZTJ</div>
       <h1>Mr.Z Trading Journal</h1>
-      <p>Log the setup, not just the result. Demo login: <b>demo</b> / <b>demo123</b></p>
+      <p>Trading journal for structure, execution, psychology, and edge review.</p>
       <div className="segmented">
         <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Login</button>
         <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Sign up</button>
@@ -441,7 +441,7 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
           <Field label="TP (Tick)"><input type="number" step="any" value={form.tpTicks ?? ''} onChange={(e) => set('tpTicks', e.target.value)} /></Field>
           <Field label="SL (Tick)"><input type="number" step="any" value={form.slTicks ?? ''} onChange={(e) => set('slTicks', e.target.value)} /></Field>
           <Field label="Point"><input type="number" step="any" value={form.tickSize} onChange={(e) => set('tickSize', e.target.value)} /></Field>
-          <Field label="Lot"><input type="number" step="any" value={form.lotSize ?? ''} onChange={(e) => set('lotSize', e.target.value)} /></Field>
+          <Field label="Lot"><input type="number" step="any" value={form.lotSize} onChange={(e) => set('lotSize', e.target.value)} /></Field>
           <Field label="Stop"><input type="number" step="any" value={form.stopLoss} onChange={(e) => set('stopLoss', e.target.value)} /></Field>
           <Field label="Target"><input type="number" step="any" value={form.takeProfit} onChange={(e) => set('takeProfit', e.target.value)} /></Field>
           <Field label="$ / point"><input type="number" step="any" value={form.dollarPerPoint} onChange={(e) => set('dollarPerPoint', e.target.value)} /></Field>
