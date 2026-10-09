@@ -441,7 +441,7 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
           <Field label="TP (Tick)"><input type="number" step="any" value={form.tpTicks ?? ''} onChange={(e) => set('tpTicks', e.target.value)} /></Field>
           <Field label="SL (Tick)"><input type="number" step="any" value={form.slTicks ?? ''} onChange={(e) => set('slTicks', e.target.value)} /></Field>
           <Field label="Point"><input type="number" step="any" value={form.tickSize} onChange={(e) => set('tickSize', e.target.value)} /></Field>
-          <Field label="Lot"><input type="number" step="any" value={form.lotSize} onChange={(e) => set('lotSize', e.target.value)} /></Field>
+          <Field label="Lot"><input type="number" step="any" value={form.lotSize ?? ''} onChange={(e) => set('lotSize', e.target.value)} /></Field>
           <Field label="Stop"><input type="number" step="any" value={form.stopLoss} onChange={(e) => set('stopLoss', e.target.value)} /></Field>
           <Field label="Target"><input type="number" step="any" value={form.takeProfit} onChange={(e) => set('takeProfit', e.target.value)} /></Field>
           <Field label="$ / point"><input type="number" step="any" value={form.dollarPerPoint} onChange={(e) => set('dollarPerPoint', e.target.value)} /></Field>
@@ -598,6 +598,7 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
   const [balance, setBalance] = useState(account?.startingBalance || 50000);
   const [optionDrafts, setOptionDrafts] = useState({});
   const [assetDrafts, setAssetDrafts] = useState([]);
+  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   useEffect(() => { setName(account?.name || ''); setBalance(account?.startingBalance || 50000); }, [account?.id]);
   useEffect(() => setOptionDrafts(Object.fromEntries(Object.entries(options).map(([key, vals]) => [key, vals.join('\n')]))), [options]);
   useEffect(() => setAssetDrafts(assets.map((asset) => ({ ...asset }))), [assets]);
@@ -627,6 +628,18 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     await reload(id);
     setToast('Portfolio reset');
   }
+  async function changePassword() {
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      setToast('New passwords do not match');
+      return;
+    }
+    await api('/me/password', {
+      method: 'PUT',
+      body: JSON.stringify({ currentPassword: passwords.currentPassword, newPassword: passwords.newPassword })
+    });
+    setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setToast('Password changed');
+  }
   async function saveOption(key) {
     const values = String(optionDrafts[key] || '').split('\n').map((value) => value.trim()).filter(Boolean);
     await api(`/options/${key}`, { method: 'PUT', body: JSON.stringify({ label: key, options: values }) });
@@ -653,7 +666,9 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
   }
   return <section><Header title="Settings" hint={`Portfolios, presets, and customizable field options (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />New portfolio</button>} />
     <div className="grid two"><Panel title="Portfolio Management"><div className="form-grid"><Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} /></Field></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
-    <Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel></div>
+    <Panel title="Security"><div className="form-grid"><Field label="Current password"><input type="password" value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} /></Field><Field label="New password"><input type="password" value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} /></Field><Field label="Confirm password"><input type="password" value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
+    <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
+    <Panel title="Account note"><div className="empty compact-empty">Use Security to update your own password. Admins can manage roles, status, and portfolio limits from the Admin page.</div></Panel></div>
     <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)}><Save size={14} />Save {key}</button></div>)}</div></Panel></section>;
 }
 
