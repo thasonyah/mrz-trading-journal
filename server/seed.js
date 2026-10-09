@@ -2,6 +2,17 @@ import bcrypt from 'bcryptjs';
 import { boolValue, get, run, transaction } from './db.js';
 import './migrate.js';
 
+const userCount = Number((await get('SELECT COUNT(*) count FROM users')).count);
+if (process.env.NODE_ENV === 'production' && process.env.DEMO_SEED_ENABLED !== 'true') {
+  console.log('Demo seed skipped in production. Set DEMO_SEED_ENABLED=true to load demo data.');
+  process.exit(0);
+}
+
+if (userCount > 0 && process.env.DEMO_SEED_ENABLED !== 'true') {
+  console.log('Demo seed skipped because users already exist. Set DEMO_SEED_ENABLED=true to load demo data.');
+  process.exit(0);
+}
+
 const exists = await get('SELECT id FROM users WHERE username=?', ['demo']);
 if (exists) {
   console.log('Demo user already exists: demo / demo123');
@@ -46,7 +57,7 @@ await transaction(async (dbx) => {
     'demo',
     'demo@mrz.local',
     bcrypt.hashSync('demo123', 10),
-    'admin',
+    'trader',
     boolValue(true),
     5
   ]);
