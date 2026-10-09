@@ -335,6 +335,15 @@ tbody tr:hover { background: #14151b; }
 .row-actions button { min-height: 30px; padding: 0 8px; margin-right: 6px; }
 .admin-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .admin-row-actions { min-width: 150px; }
+.email-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.email-status p { margin: 5px 0; color: var(--text-dim); }
+.email-status small { color: var(--text-faint); }
+.email-status button { flex: 0 0 auto; }
 tr.selected { background: var(--accent-soft); }
 tr.selected td { color: var(--accent); font-weight: 800; }
 .tiny-input { width: 58px; min-height: 32px; padding: 0 8px; }
@@ -394,5 +403,6 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   .sidebar { padding: 16px 12px; }
   .sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi-grid, .form-grid, .form-grid.compact, .risk-strip, .option-editor, .asset-row { grid-template-columns: 1fr; }
+  .email-status { display: grid; }
   .chart-wrap { height: 260px; }
 }
