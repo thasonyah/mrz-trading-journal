@@ -222,7 +222,9 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   try {
     const hash = bcrypt.hashSync(password, 10);
     const user = await transaction(async (dbx) => {
-      const userId = await dbx.insert('INSERT INTO users (username, email, password_hash, role, email_verified) VALUES (?, ?, ?, ?, ?)', [username, email, hash, 'trader', boolValue(false)]);
+      const userCount = Number((await dbx.get('SELECT COUNT(*) count FROM users')).count);
+      const role = userCount === 0 ? 'admin' : 'trader';
+      const userId = await dbx.insert('INSERT INTO users (username, email, password_hash, role, email_verified) VALUES (?, ?, ?, ?, ?)', [username, email, hash, role, boolValue(false)]);
       await createDefaultAccount(userId, dbx);
       return dbx.get('SELECT * FROM users WHERE id=?', [userId]);
     });
