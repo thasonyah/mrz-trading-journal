@@ -1,13 +1,126 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import pg from 'pg';
 
-const dbPath = process.env.DATABASE_PATH || './data/trading-journal.sqlite';
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+export const isPostgres = Boolean(process.env.DATABASE_URL);
 
-export const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+let sqlite;
+let pool;
+
+if (isPostgres) {
+  pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false
+  });
+} else {
+  const dbPath = process.env.DATABASE_PATH || './data/trading-journal.sqlite';
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  sqlite = new Database(dbPath);
+  sqlite.pragma('journal_mode = WAL');
+  sqlite.pragma('foreign_keys = ON');
+}
+
+function toPg(sql) {
+  let index = 0;
+  return sql.replace(/\?/g, () => `$${++index}`);
+}
+
+export async function exec(sql) {
+  if (isPostgres) return pool.query(sql);
+  sqlite.exec(sql);
+  return null;
+}
+
+export async function get(sql, params = []) {
+  if (isPostgres) {
+    const result = await pool.query(toPg(sql), params);
+    return result.rows[0];
+  }
+  return sqlite.prepare(sql).get(...params);
+}
+
+export async function all(sql, params = []) {
+  if (isPostgres) {
+    const result = await pool.query(toPg(sql), params);
+    return result.rows;
+  }
+  return sqlite.prepare(sql).all(...params);
+}
+
+export async function run(sql, params = []) {
+  if (isPostgres) {
+    const result = await pool.query(toPg(sql), params);
+    return { changes: result.rowCount };
+  }
+  const result = sqlite.prepare(sql).run(...params);
+  return { changes: result.changes, lastInsertRowid: result.lastInsertRowid };
+}
+
+export async function insert(sql, params = []) {
+  if (isPostgres) {
+    const result = await pool.query(`${toPg(sql)} RETURNING id`, params);
+    return result.rows[0].id;
+  }
+  const result = sqlite.prepare(sql).run(...params);
+  return result.lastInsertRowid;
+}
+
+export async function transaction(callback) {
+  if (!isPostgres) {
+    return callback({ get, all, run, insert });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const tx = {
+      get: async (sql, params = []) => {
+        const result = await client.query(toPg(sql), params);
+        return result.rows[0];
+      },
+      all: async (sql, params = []) => {
+        const result = await client.query(toPg(sql), params);
+        return result.rows;
+      },
+      run: async (sql, params = []) => {
+        const result = await client.query(toPg(sql), params);
+        return { changes: result.rowCount };
+      },
+      insert: async (sql, params = []) => {
+        const result = await client.query(`${toPg(sql)} RETURNING id`, params);
+        return result.rows[0].id;
+      }
+    };
+    const value = await callback(tx);
+    await client.query('COMMIT');
+    return value;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export function upsertOptionSql() {
+  return `
+    INSERT INTO option_sets (user_id, field_key, label, options_json)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, field_key) DO UPDATE SET label=excluded.label, options_json=excluded.options_json
+  `;
+}
+
+export function upsertNoteSql() {
+  return `
+    INSERT INTO journal_notes (user_id, account_id, title, content, updated_at)
+    VALUES (?, ?, 'Account Playbook', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id, account_id, title) DO UPDATE SET content=excluded.content, updated_at=CURRENT_TIMESTAMP
+  `;
+}
+
+export function boolValue(value) {
+  return isPostgres ? Boolean(value) : value ? 1 : 0;
+}
 
 export function rowToTrade(row) {
   if (!row) return null;
