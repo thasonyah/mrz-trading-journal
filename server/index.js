@@ -114,6 +114,17 @@ async function sendMail({ to, subject, text }) {
   return { sent: true };
 }
 
+function emailStatus() {
+  return {
+    configured: Boolean(process.env.SMTP_HOST),
+    host: process.env.SMTP_HOST || null,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    userConfigured: Boolean(process.env.SMTP_USER),
+    from: process.env.MAIL_FROM || process.env.SMTP_USER || null
+  };
+}
+
 async function issueEmailVerification(req, user) {
   const token = await createAuthToken(user.id, 'verify_email');
   const link = `${publicBaseUrl(req)}/verify-email?token=${token}`;
@@ -561,6 +572,26 @@ app.put('/api/admin/users/:id', auth, asyncHandler(async (req, res) => {
     req.params.id
   ]);
   res.json({ user: userForClient(await getUser(req.params.id)) });
+}));
+
+app.get('/api/admin/email/status', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  res.json({ email: emailStatus() });
+}));
+
+app.post('/api/admin/email/test', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  const user = await getUser(req.user.id);
+  const to = String(req.body.to || user.email || '').trim();
+  if (!to) return res.status(400).json({ error: 'Admin email is required for test delivery' });
+  const status = emailStatus();
+  if (!status.configured) return res.status(400).json({ error: 'SMTP is not configured on Render yet', email: status });
+  await sendMail({
+    to,
+    subject: 'Mr.Z Trading Journal email test',
+    text: `Email delivery is working for Mr.Z Trading Journal.\n\nSent at: ${new Date().toISOString()}`
+  });
+  res.json({ ok: true, sentTo: to, email: status });
 }));
 
 app.use(express.static(distPath));
