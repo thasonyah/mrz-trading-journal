@@ -282,6 +282,19 @@ app.get('/api/me', auth, (req, res) => {
   res.json({ user: userForClient(user) });
 });
 
+app.put('/api/me/password', auth, (req, res) => {
+  const currentPassword = String(req.body.currentPassword || '');
+  const newPassword = String(req.body.newPassword || '');
+  if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  const user = getUser(req.user.id);
+  if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+  db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(bcrypt.hashSync(newPassword, 10), req.user.id);
+  db.prepare('UPDATE auth_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND type=? AND used_at IS NULL').run(req.user.id, 'reset_password');
+  res.json({ ok: true, message: 'Password changed' });
+});
+
 app.get('/api/accounts', auth, (req, res) => {
   const userId = scopeUserId(req);
   const user = getUser(userId);
