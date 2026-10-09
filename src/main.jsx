@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import {
-  BarChart3, BookOpen, CalendarDays, Download, FileText, Filter, Gauge, History,
+  BarChart3, BookOpen, CalendarDays, Download, FileText, Filter, Gauge, History, Mail,
   LayoutDashboard, LogOut, Plus, Save, Settings, Shield, SlidersHorizontal, Trash2, Upload, UserRound
 } from 'lucide-react';
 import './styles.css';
@@ -677,10 +677,17 @@ function CoachPage({ api, currentUser, viewUserId, setViewUserId }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(null);
   const [dirty, setDirty] = useState(new Set());
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [emailTest, setEmailTest] = useState('');
   async function load() {
     setError('');
     try {
-      setRows((await api('/admin/team')).users);
+      const [team, email] = await Promise.all([
+        api('/admin/team'),
+        currentUser?.role === 'admin' ? api('/admin/email/status') : Promise.resolve(null)
+      ]);
+      setRows(team.users);
+      setEmailStatus(email?.email || null);
       setDirty(new Set());
     } catch (err) { setError(err.message); }
   }
@@ -716,10 +723,24 @@ function CoachPage({ api, currentUser, viewUserId, setViewUserId }) {
       await save(row);
     }
   }
+  async function testEmail() {
+    setEmailTest('Sending...');
+    try {
+      const result = await api('/admin/email/test', {
+        method: 'POST',
+        body: JSON.stringify({ to: currentUser?.email })
+      });
+      setEmailTest(`Sent to ${result.sentTo}`);
+    } catch (err) {
+      setEmailTest(err.message);
+    }
+  }
   if (!['coach', 'admin'].includes(currentUser?.role)) {
     return <section><Header title="Admin" hint="Admin and coach users only" /><div className="empty">No admin access for this account.</div></section>;
   }
-  return <section><Header title="Admin" hint="Manage users, permissions, email verification, and portfolio access" action={<div className="admin-actions"><button onClick={load}><Shield size={16} />Refresh</button>{currentUser?.role === 'admin' && <button className="primary" onClick={saveAll} disabled={!dirty.size || saving}><Save size={16} />Save changes</button>}</div>} />{error && <div className="empty">{error}</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Actions</th><th>Email</th><th>Role</th><th>Status</th><th>Verified</th><th>Portfolios</th><th>Trades</th><th>Net P&L</th></tr></thead><tbody>{rows.map((r) => <tr key={r.id} className={viewUserId === r.id ? 'selected' : ''}><td><b>{r.username}</b>{dirty.has(r.id) && <small>Unsaved</small>}</td><td className="row-actions admin-row-actions"><button onClick={() => setViewUserId(r.id)}><UserRound size={14} />Open</button>{currentUser?.role === 'admin' && <button className={dirty.has(r.id) ? 'primary' : ''} onClick={() => save(r)} disabled={saving === r.id || !dirty.has(r.id)}><Save size={14} />Save</button>}</td><td>{r.email || '-'}</td><td><select value={r.role} onChange={(e) => updateRow(r.id, 'role', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="trader">trader</option><option value="coach">coach</option><option value="admin">admin</option></select></td><td><select value={r.status || 'active'} onChange={(e) => updateRow(r.id, 'status', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="active">active</option><option value="suspended">suspended</option></select></td><td><label className="table-check"><input type="checkbox" checked={!!r.emailVerified} onChange={(e) => updateRow(r.id, 'emailVerified', e.target.checked)} disabled={currentUser?.role !== 'admin'} />Yes</label></td><td><input className="tiny-input" type="number" min="1" max="5" value={r.portfolioLimit || 5} onChange={(e) => updateRow(r.id, 'portfolioLimit', e.target.value)} disabled={currentUser?.role !== 'admin'} /> <small>{r.portfolios || 0} used</small></td><td>{r.totalTrades}</td><td className={r.netPnl >= 0 ? 'pos' : 'neg'}>{money(r.netPnl)}</td></tr>)}</tbody></table></div></section>;
+  return <section><Header title="Admin" hint="Manage users, permissions, email verification, and portfolio access" action={<div className="admin-actions"><button onClick={load}><Shield size={16} />Refresh</button>{currentUser?.role === 'admin' && <button className="primary" onClick={saveAll} disabled={!dirty.size || saving}><Save size={16} />Save changes</button>}</div>} />{error && <div className="empty">{error}</div>}
+    {currentUser?.role === 'admin' && <Panel title="Email delivery"><div className="email-status"><div><b className={emailStatus?.configured ? 'pos' : 'neg'}>{emailStatus?.configured ? 'SMTP configured' : 'SMTP not configured'}</b><p>{emailStatus?.configured ? `${emailStatus.host}:${emailStatus.port} • From ${emailStatus.from || '-'}` : 'Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and MAIL_FROM in Render Environment.'}</p>{emailTest && <small>{emailTest}</small>}</div><button onClick={testEmail} disabled={!emailStatus?.configured || !currentUser?.email}><Mail size={16} />Send test email</button></div></Panel>}
+    <div className="table-wrap"><table><thead><tr><th>User</th><th>Actions</th><th>Email</th><th>Role</th><th>Status</th><th>Verified</th><th>Portfolios</th><th>Trades</th><th>Net P&L</th></tr></thead><tbody>{rows.map((r) => <tr key={r.id} className={viewUserId === r.id ? 'selected' : ''}><td><b>{r.username}</b>{dirty.has(r.id) && <small>Unsaved</small>}</td><td className="row-actions admin-row-actions"><button onClick={() => setViewUserId(r.id)}><UserRound size={14} />Open</button>{currentUser?.role === 'admin' && <button className={dirty.has(r.id) ? 'primary' : ''} onClick={() => save(r)} disabled={saving === r.id || !dirty.has(r.id)}><Save size={14} />Save</button>}</td><td>{r.email || '-'}</td><td><select value={r.role} onChange={(e) => updateRow(r.id, 'role', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="trader">trader</option><option value="coach">coach</option><option value="admin">admin</option></select></td><td><select value={r.status || 'active'} onChange={(e) => updateRow(r.id, 'status', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="active">active</option><option value="suspended">suspended</option></select></td><td><label className="table-check"><input type="checkbox" checked={!!r.emailVerified} onChange={(e) => updateRow(r.id, 'emailVerified', e.target.checked)} disabled={currentUser?.role !== 'admin'} />Yes</label></td><td><input className="tiny-input" type="number" min="1" max="5" value={r.portfolioLimit || 5} onChange={(e) => updateRow(r.id, 'portfolioLimit', e.target.value)} disabled={currentUser?.role !== 'admin'} /> <small>{r.portfolios || 0} used</small></td><td>{r.totalTrades}</td><td className={r.netPnl >= 0 ? 'pos' : 'neg'}>{money(r.netPnl)}</td></tr>)}</tbody></table></div></section>;
 }
 
 function Header({ title, hint, action }) { return <div className="page-head"><div><h1>{title}</h1><p>{hint}</p></div>{action}</div>; }
