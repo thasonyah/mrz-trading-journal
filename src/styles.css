@@ -365,6 +365,8 @@ tr.selected td { color: var(--accent); font-weight: 800; }
 .portfolio-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .portfolio-list button { min-height: 30px; padding: 0 10px; }
 .portfolio-list .selected { border-color: var(--accent); color: var(--accent); }
+.settings-lower { margin-top: 16px; margin-bottom: 16px; }
+.compact-empty { min-height: 132px; padding: 18px; text-align: center; line-height: 1.5; }
 .toast {
   position: fixed;
   right: 22px;
