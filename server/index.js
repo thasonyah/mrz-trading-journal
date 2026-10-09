@@ -125,6 +125,25 @@ function emailStatus() {
   };
 }
 
+function downloadName(prefix, ext) {
+  return `${prefix}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+}
+
+function csvEscape(value) {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function toCsv(rows) {
+  if (!rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  return [
+    headers.map(csvEscape).join(','),
+    ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(','))
+  ].join('\n');
+}
+
 async function issueEmailVerification(req, user) {
   const token = await createAuthToken(user.id, 'verify_email');
   const link = `${publicBaseUrl(req)}/verify-email?token=${token}`;
@@ -592,6 +611,37 @@ app.post('/api/admin/email/test', auth, asyncHandler(async (req, res) => {
     text: `Email delivery is working for Mr.Z Trading Journal.\n\nSent at: ${new Date().toISOString()}`
   });
   res.json({ ok: true, sentTo: to, email: status });
+}));
+
+app.get('/api/admin/export/json', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    app: 'Mr.Z Trading Journal',
+    users: await all('SELECT id, username, email, role, email_verified, status, portfolio_limit, permissions_json, created_at FROM users ORDER BY id'),
+    accounts: await all('SELECT * FROM accounts ORDER BY user_id, sort_order, id'),
+    trades: await all('SELECT * FROM trades ORDER BY user_id, account_id, trade_date, id'),
+    optionSets: await all('SELECT * FROM option_sets ORDER BY user_id, field_key'),
+    assetPresets: await all('SELECT * FROM asset_presets ORDER BY user_id, sort_order, symbol'),
+    journalNotes: await all('SELECT * FROM journal_notes ORDER BY user_id, account_id, title')
+  };
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${downloadName('mrz-trading-journal-backup', 'json')}"`);
+  res.send(JSON.stringify(payload, null, 2));
+}));
+
+app.get('/api/admin/export/trades.csv', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  const rows = await all(`
+    SELECT u.username, u.email, a.name account_name, a.type account_type, t.*
+    FROM trades t
+    JOIN users u ON u.id=t.user_id
+    JOIN accounts a ON a.id=t.account_id
+    ORDER BY u.username, a.sort_order, t.trade_date, t.id
+  `);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${downloadName('mrz-trading-journal-trades', 'csv')}"`);
+  res.send(toCsv(rows));
 }));
 
 app.use(express.static(distPath));
