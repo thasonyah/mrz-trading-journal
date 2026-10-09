@@ -342,7 +342,7 @@ function App() {
     ['analytics', BarChart3, 'Analytics'],
     ['journal', BookOpen, 'Playbook'],
     ['settings', Settings, 'Settings'],
-    ['coach', Shield, 'Coach']
+    ['coach', Shield, 'Admin']
   ];
   function logout() {
     localStorage.removeItem('etj_token');
@@ -661,13 +661,18 @@ function CoachPage({ api, currentUser, viewUserId, setViewUserId }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(null);
+  const [dirty, setDirty] = useState(new Set());
   async function load() {
     setError('');
-    try { setRows((await api('/admin/team')).users); } catch (err) { setError(err.message); }
+    try {
+      setRows((await api('/admin/team')).users);
+      setDirty(new Set());
+    } catch (err) { setError(err.message); }
   }
   useEffect(() => { load(); }, []);
   function updateRow(id, key, value) {
     setRows(rows.map((row) => row.id === id ? { ...row, [key]: value } : row));
+    setDirty((current) => new Set([...current, id]));
   }
   async function save(row) {
     setSaving(row.id);
@@ -682,14 +687,24 @@ function CoachPage({ api, currentUser, viewUserId, setViewUserId }) {
         })
       });
       setRows(rows.map((item) => item.id === row.id ? { ...item, ...data.user } : item));
+      setDirty((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
     } finally {
       setSaving(null);
+    }
+  }
+  async function saveAll() {
+    for (const row of rows.filter((item) => dirty.has(item.id))) {
+      await save(row);
     }
   }
   if (!['coach', 'admin'].includes(currentUser?.role)) {
     return <section><Header title="Admin" hint="Admin and coach users only" /><div className="empty">No admin access for this account.</div></section>;
   }
-  return <section><Header title="Admin" hint="Manage users, permissions, email verification, and portfolio access" action={<button onClick={load}><Shield size={16} />Refresh</button>} />{error && <div className="empty">{error}</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Verified</th><th>Portfolios</th><th>Trades</th><th>Net P&L</th><th></th></tr></thead><tbody>{rows.map((r) => <tr key={r.id} className={viewUserId === r.id ? 'selected' : ''}><td><b>{r.username}</b></td><td>{r.email || '-'}</td><td><select value={r.role} onChange={(e) => updateRow(r.id, 'role', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="trader">trader</option><option value="coach">coach</option><option value="admin">admin</option></select></td><td><select value={r.status || 'active'} onChange={(e) => updateRow(r.id, 'status', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="active">active</option><option value="suspended">suspended</option></select></td><td><label className="table-check"><input type="checkbox" checked={!!r.emailVerified} onChange={(e) => updateRow(r.id, 'emailVerified', e.target.checked)} disabled={currentUser?.role !== 'admin'} />Yes</label></td><td><input className="tiny-input" type="number" min="1" max="5" value={r.portfolioLimit || 5} onChange={(e) => updateRow(r.id, 'portfolioLimit', e.target.value)} disabled={currentUser?.role !== 'admin'} /> <small>{r.portfolios || 0} used</small></td><td>{r.totalTrades}</td><td className={r.netPnl >= 0 ? 'pos' : 'neg'}>{money(r.netPnl)}</td><td className="row-actions"><button onClick={() => setViewUserId(r.id)}><UserRound size={14} />Open</button>{currentUser?.role === 'admin' && <button onClick={() => save(r)} disabled={saving === r.id}><Save size={14} />Save</button>}</td></tr>)}</tbody></table></div></section>;
+  return <section><Header title="Admin" hint="Manage users, permissions, email verification, and portfolio access" action={<div className="admin-actions"><button onClick={load}><Shield size={16} />Refresh</button>{currentUser?.role === 'admin' && <button className="primary" onClick={saveAll} disabled={!dirty.size || saving}><Save size={16} />Save changes</button>}</div>} />{error && <div className="empty">{error}</div>}<div className="table-wrap"><table><thead><tr><th>User</th><th>Actions</th><th>Email</th><th>Role</th><th>Status</th><th>Verified</th><th>Portfolios</th><th>Trades</th><th>Net P&L</th></tr></thead><tbody>{rows.map((r) => <tr key={r.id} className={viewUserId === r.id ? 'selected' : ''}><td><b>{r.username}</b>{dirty.has(r.id) && <small>Unsaved</small>}</td><td className="row-actions admin-row-actions"><button onClick={() => setViewUserId(r.id)}><UserRound size={14} />Open</button>{currentUser?.role === 'admin' && <button className={dirty.has(r.id) ? 'primary' : ''} onClick={() => save(r)} disabled={saving === r.id || !dirty.has(r.id)}><Save size={14} />Save</button>}</td><td>{r.email || '-'}</td><td><select value={r.role} onChange={(e) => updateRow(r.id, 'role', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="trader">trader</option><option value="coach">coach</option><option value="admin">admin</option></select></td><td><select value={r.status || 'active'} onChange={(e) => updateRow(r.id, 'status', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="active">active</option><option value="suspended">suspended</option></select></td><td><label className="table-check"><input type="checkbox" checked={!!r.emailVerified} onChange={(e) => updateRow(r.id, 'emailVerified', e.target.checked)} disabled={currentUser?.role !== 'admin'} />Yes</label></td><td><input className="tiny-input" type="number" min="1" max="5" value={r.portfolioLimit || 5} onChange={(e) => updateRow(r.id, 'portfolioLimit', e.target.value)} disabled={currentUser?.role !== 'admin'} /> <small>{r.portfolios || 0} used</small></td><td>{r.totalTrades}</td><td className={r.netPnl >= 0 ? 'pos' : 'neg'}>{money(r.netPnl)}</td></tr>)}</tbody></table></div></section>;
 }
 
 function Header({ title, hint, action }) { return <div className="page-head"><div><h1>{title}</h1><p>{hint}</p></div>{action}</div>; }
