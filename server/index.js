@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { all, boolValue, get, insert, rowToTrade, run, transaction, upsertNoteSql, upsertOptionSql } from './db.js';
+import { all, boolValue, get, insert, isPostgres, rowToTrade, run, transaction, upsertNoteSql, upsertOptionSql } from './db.js';
 import './migrate.js';
 
 const app = express();
@@ -613,6 +613,28 @@ app.post('/api/admin/email/test', auth, asyncHandler(async (req, res) => {
     text: `Email delivery is working for Mr.Z Trading Journal.\n\nSent at: ${new Date().toISOString()}`
   });
   res.json({ ok: true, sentTo: to, email: status });
+}));
+
+app.get('/api/admin/system/status', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  const demo = await get('SELECT username, role, status FROM users WHERE username=?', ['demo']);
+  const counts = {
+    users: Number((await get('SELECT COUNT(*) count FROM users')).count),
+    accounts: Number((await get('SELECT COUNT(*) count FROM accounts')).count),
+    trades: Number((await get('SELECT COUNT(*) count FROM trades')).count)
+  };
+  res.json({
+    system: {
+      database: isPostgres ? 'Postgres' : 'SQLite',
+      production: process.env.NODE_ENV === 'production',
+      publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
+      demoAccount: demo || null,
+      demoLocked: !demo || demo.status === 'suspended',
+      email: emailStatus(),
+      exportReady: true,
+      counts
+    }
+  });
 }));
 
 app.get('/api/admin/export/json', auth, asyncHandler(async (req, res) => {
