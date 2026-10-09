@@ -25,12 +25,14 @@ npm run dev
 
 Open the Vite URL printed by the client, usually `http://127.0.0.1:5173`.
 
-Demo login:
+Local demo login after `npm run seed`:
 
 ```text
 username: demo
 password: demo123
 ```
+
+The demo user is a local trader account only. In production, `npm run seed` skips demo data unless `DEMO_SEED_ENABLED=true` is set. When the database has no users, the first registered account becomes `admin`.
 
 ## Configuration
 
@@ -77,6 +79,7 @@ SMTP_SECURE=false
 SMTP_USER=<optional SMTP username>
 SMTP_PASS=<optional SMTP password>
 MAIL_FROM=<optional from email>
+DEMO_SEED_ENABLED=false
 ```
 
 Important: Render Free web service files are ephemeral, so this project uses Render Postgres instead of SQLite in production. Render Free Postgres is useful for testing, but as of October 2026 it expires 30 days after creation and has no automatic backups. Upgrade the database plan or move to a long-term Postgres provider before storing critical trading records.
