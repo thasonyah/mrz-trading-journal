@@ -192,11 +192,8 @@ const defaultAssets = [
 
 async function ensureUserDefaults(userId) {
   for (const [key, label, options] of defaultOptions) {
-    await run(upsertOptionSql(), [userId, key, label, JSON.stringify(options)]);
-    const row = await get('SELECT options_json "optionsJson" FROM option_sets WHERE user_id=? AND field_key=?', [userId, key]);
-    const current = JSON.parse(row?.optionsJson || '[]');
-    const merged = [...current, ...options.filter((value) => !current.includes(value))];
-    if (merged.length !== current.length) await run('UPDATE option_sets SET options_json=? WHERE user_id=? AND field_key=?', [JSON.stringify(merged), userId, key]);
+    const row = await get('SELECT id FROM option_sets WHERE user_id=? AND field_key=?', [userId, key]);
+    if (!row) await run(upsertOptionSql(), [userId, key, label, JSON.stringify(options)]);
   }
   const count = Number((await get('SELECT COUNT(*) count FROM asset_presets WHERE user_id=?', [userId])).count);
   if (!count) {
