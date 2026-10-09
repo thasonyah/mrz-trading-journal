@@ -333,6 +333,8 @@ td small { display: block; color: var(--text-faint); margin-top: 3px; }
 tbody tr:hover { background: #14151b; }
 .row-actions { white-space: nowrap; }
 .row-actions button { min-height: 30px; padding: 0 8px; margin-right: 6px; }
+.admin-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.admin-row-actions { min-width: 150px; }
 tr.selected { background: var(--accent-soft); }
 tr.selected td { color: var(--accent); font-weight: 800; }
 .tiny-input { width: 58px; min-height: 32px; padding: 0 8px; }
