@@ -344,6 +344,27 @@ tbody tr:hover { background: #14151b; }
 .email-status p { margin: 5px 0; color: var(--text-dim); }
 .email-status small { color: var(--text-faint); }
 .email-status button { flex: 0 0 auto; }
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+.status-grid div {
+  background: #0d0e13;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+.status-grid span {
+  display: block;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 6px;
+}
+.status-grid b { font-size: 14px; }
 tr.selected { background: var(--accent-soft); }
 tr.selected td { color: var(--accent); font-weight: 800; }
 .tiny-input { width: 58px; min-height: 32px; padding: 0 8px; }
@@ -403,6 +424,7 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   .sidebar { padding: 16px 12px; }
   .sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi-grid, .form-grid, .form-grid.compact, .risk-strip, .option-editor, .asset-row { grid-template-columns: 1fr; }
+  .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .email-status { display: grid; }
   .chart-wrap { height: 260px; }
 }
