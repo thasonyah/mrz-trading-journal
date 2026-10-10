@@ -179,8 +179,8 @@ const defaultOptions = [
 ];
 
 const defaultAssets = [
-  ['MNQ1', 0.25, 0.5],
   ['NQ1', 0.25, 5],
+  ['MNQ1', 0.25, 0.5],
   ['MGC1', 0.1, 1],
   ['GC1', 0.1, 10],
   ['XAUUSD', 0.01, 1],
@@ -441,7 +441,7 @@ app.get('/api/accounts/:accountId/trades', auth, asyncHandler(async (req, res) =
 
 const tradeColumns = [
   'trade_date','asset','direction','session','entry_time','exit_time','duration_time','order_wait_minutes','mode','entry_price','stop_loss','take_profit',
-  'tp_ticks','sl_ticks','tick_size','dollar_per_point','planned_r','actual_r','max_r','mfe_r','mae_r','risk_amount','lot_size','pnl','sl_amount',
+  'tp_ticks','sl_ticks','tick_size','dollar_per_point','planned_r','actual_r','max_r','max_tick','mfe_r','mae_r','risk_amount','lot_size','pnl','sl_amount',
   'tp_amount','tp_percent','balance_after','con_loss','sum_con_loss_amount','dd_loss_pct','sum_dd_loss_pct','result','picture_url','tip_url',
   'htf_bias','htf_poi','poi_type','poi_has_fvg','fvg_position',
   'liquidity_sweep','bos','choch','mtf_structure','ltf_entry','key_zone','setup_grade','setup_score','rule_violation','emotion_before','emotion_after',
@@ -470,6 +470,7 @@ function normalizeTrade(body) {
     planned_r: b.plannedR ?? null,
     actual_r: b.actualR ?? null,
     max_r: b.maxR ?? null,
+    max_tick: b.maxTick ?? null,
     mfe_r: b.mfeR ?? null,
     mae_r: b.maeR ?? null,
     risk_amount: b.riskAmount || 0,
