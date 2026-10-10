@@ -23,6 +23,39 @@ const fmtMinutes = (minutes) => {
   return hours ? `${hours}h ${mins}m` : `${mins}m`;
 };
 const today = () => new Date().toISOString().slice(0, 10);
+const profileContactLabels = { phone: 'Phone', email: 'E-mail', facebook: 'Facebook', line: 'Line' };
+
+function profileContact(profile = {}, fallbackEmail = '') {
+  const type = profile.contactType || 'email';
+  return profile[type] || (type === 'email' ? fallbackEmail : '') || profile.email || fallbackEmail || '';
+}
+
+function resizeProfileImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve('');
+    if (!file.type.startsWith('image/')) return reject(new Error('Please choose an image file'));
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 250;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(size / img.width, size / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+        ctx.drawImage(img, (size - width) / 2, (size - height) / 2, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      };
+      img.onerror = () => reject(new Error('Could not read image'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error('Could not read image'));
+    reader.readAsDataURL(file);
+  });
+}
 
 const defaultAssets = [
   { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5 },
@@ -442,7 +475,10 @@ function App() {
   }
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="mark small">ZTJ</div><div><b>Mr.Z Trading Journal</b><span>POI to outcome</span></div></div>
+      <div className="sidebar-top">
+        <div className="brand"><div className="mark small">ZTJ</div><div><b>Mr.Z Trading Journal</b><span>POI to outcome</span></div></div>
+        <ProfileCard user={currentUser} />
+      </div>
       <label className="mini-label">Portfolio {accounts.length}/{portfolioLimit}</label>
       <select value={accountId || ''} onChange={async (e) => { setAccountId(e.target.value); const data = await scopedApi(`/accounts/${e.target.value}/trades`); setTrades(data.trades); }}>
         {accounts.map((a) => <option value={a.id} key={a.id}>{a.name}</option>)}
@@ -460,10 +496,23 @@ function App() {
       {page === 'calendar' && <CalendarPage trades={trades} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
       {page === 'journal' && <JournalPage api={scopedApi} accountId={accountId} />}
-      {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} reload={loadAll} setToast={setToast} />}
+      {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
       {page === 'coach' && <CoachPage api={api} token={session?.token} currentUser={currentUser} viewUserId={viewUserId} setViewUserId={(id) => { setViewUserId(id); setPage('dashboard'); }} />}
     </main>
     {toast && <div className="toast">{toast}</div>}
+  </div>;
+}
+
+function ProfileCard({ user }) {
+  const profile = user?.profile || {};
+  const contact = profileContact(profile, user?.email);
+  const label = profileContactLabels[profile.contactType || 'email'] || 'Contact';
+  return <div className="profile-card">
+    <div className="profile-photo">{profile.image ? <img src={profile.image} alt="" /> : <UserRound size={84} strokeWidth={1.25} />}</div>
+    <div className="profile-copy">
+      <b>{profile.nickname || 'Nick Name'}</b>
+      <span>{contact || label}</span>
+    </div>
   </div>;
 }
 
@@ -766,7 +815,7 @@ function JournalPage({ api, accountId }) {
   return <section><Header title="Playbook" hint={saved ? `Saved ${saved}` : 'Account logic, rules, and review notes'} action={<button className="primary" onClick={save}><Save size={16} />Save note</button>} /><textarea className="playbook" value={content} onChange={(e) => setContent(e.target.value)} /></section>;
 }
 
-function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, reload, setToast }) {
+function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, user, setCurrentUser, reload, setToast }) {
   const [name, setName] = useState(account?.name || '');
   const [balance, setBalance] = useState(account?.startingBalance || 50000);
   const [optionDrafts, setOptionDrafts] = useState({});
@@ -774,9 +823,11 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
   const [savingOption, setSavingOption] = useState('');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [visiblePasswords, setVisiblePasswords] = useState({ currentPassword: false, newPassword: false, confirmPassword: false });
+  const [profile, setProfile] = useState(user?.profile || {});
   useEffect(() => { setName(account?.name || ''); setBalance(account?.startingBalance || 50000); }, [account?.id]);
   useEffect(() => setOptionDrafts(Object.fromEntries(Object.entries(options).map(([key, vals]) => [key, vals.join('\n')]))), [options]);
   useEffect(() => setAssetDrafts(assets.map((asset) => ({ ...asset }))), [assets]);
+  useEffect(() => setProfile(user?.profile || {}), [user?.id, user?.profile]);
   async function saveAccount() {
     await api(`/accounts/${account.id}`, { method: 'PUT', body: JSON.stringify({ name, type: account.type, startingBalance: balance }) });
     await reload(account.id);
@@ -815,6 +866,24 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setToast('Password changed');
   }
+  async function saveProfile() {
+    const data = await api('/me/profile', { method: 'PUT', body: JSON.stringify({ profile }) });
+    setCurrentUser(data.user);
+    setToast('Profile saved');
+  }
+  async function chooseProfileImage(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const image = await resizeProfileImage(file);
+      setProfile({ ...profile, image });
+      setToast('Profile image resized to 250x250');
+    } catch (error) {
+      setToast(error.message || 'Could not load image');
+    } finally {
+      event.target.value = '';
+    }
+  }
   async function saveOption(key) {
     const values = [...new Set(String(optionDrafts[key] || '').split('\n').map((value) => value.trim()).filter(Boolean))];
     setSavingOption(key);
@@ -850,7 +919,19 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     setVisiblePasswords({ ...visiblePasswords, [key]: !visiblePasswords[key] });
   }
   return <section><Header title="Settings" hint={`Portfolios, presets, and customizable field options (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />New portfolio</button>} />
-    <div className="grid two"><Panel title="Portfolio Management"><div className="form-grid"><Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} /></Field></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
+    <Panel title="Profile"><div className="profile-settings">
+      <div className="profile-upload">
+        <div className="profile-photo preview">{profile.image ? <img src={profile.image} alt="" /> : <UserRound size={96} strokeWidth={1.2} />}</div>
+        <label className="upload-button"><Upload size={15} />Upload 250x250<input type="file" accept="image/*" onChange={chooseProfileImage} /></label>
+      </div>
+      <div className="profile-fields">
+        <div className="form-grid compact"><Field label="Nickname"><input value={profile.nickname || ''} onChange={(e) => setProfile({ ...profile, nickname: e.target.value })} placeholder="Nick Name" /></Field><Field label="Show contact"><select value={profile.contactType || 'email'} onChange={(e) => setProfile({ ...profile, contactType: e.target.value })}>{Object.entries(profileContactLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field></div>
+        <div className="form-grid compact"><Field label="Phone"><input value={profile.phone || ''} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} placeholder="Phone number" /></Field><Field label="E-mail"><input type="email" value={profile.email || ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder={user?.email || 'name@email.com'} /></Field><Field label="Facebook"><input value={profile.facebook || ''} onChange={(e) => setProfile({ ...profile, facebook: e.target.value })} placeholder="Facebook" /></Field><Field label="Line"><input value={profile.line || ''} onChange={(e) => setProfile({ ...profile, line: e.target.value })} placeholder="Line ID" /></Field></div>
+        <div className="profile-preview-line">Preview: <b>{profile.nickname || 'Nick Name'}</b><span>{profileContact(profile, user?.email) || profileContactLabels[profile.contactType || 'email']}</span></div>
+        <div className="actions"><button className="primary" onClick={saveProfile}><Save size={16} />Save profile</button></div>
+      </div>
+    </div></Panel>
+    <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="form-grid"><Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} /></Field></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
     <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
     <Panel title="Account note"><div className="empty compact-empty">Use Security to update your own password. Admins can manage roles, status, and portfolio limits from the Admin page.</div></Panel></div>
