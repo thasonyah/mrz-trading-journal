@@ -33,8 +33,41 @@ function userForClient(user) {
     role: user.role,
     status: user.status,
     emailVerified: Boolean(user.email_verified),
-    portfolioLimit: user.portfolio_limit
+    portfolioLimit: user.portfolio_limit,
+    profile: {
+      nickname: user.profile_nickname || '',
+      phone: user.profile_phone || '',
+      email: user.profile_email || '',
+      facebook: user.profile_facebook || '',
+      line: user.profile_line || '',
+      contactType: user.profile_contact_type || 'email',
+      image: user.profile_image || ''
+    }
   };
+}
+
+function cleanProfileText(value, max = 80) {
+  return String(value || '').trim().slice(0, max);
+}
+
+function normalizeContactType(value) {
+  return ['phone', 'email', 'facebook', 'line'].includes(value) ? value : 'email';
+}
+
+function validateProfileImage(value) {
+  const image = String(value || '').trim();
+  if (!image) return '';
+  if (!/^data:image\/(png|jpeg|webp);base64,/i.test(image)) {
+    const err = new Error('Profile image must be PNG, JPG, or WebP');
+    err.status = 400;
+    throw err;
+  }
+  if (image.length > 900000) {
+    const err = new Error('Profile image is too large');
+    err.status = 400;
+    throw err;
+  }
+  return image;
 }
 
 function auth(req, res, next) {
@@ -310,11 +343,30 @@ app.get('/api/me', auth, asyncHandler(async (req, res) => {
   res.json({ user: userForClient(user) });
 }));
 
+app.put('/api/me/profile', auth, asyncHandler(async (req, res) => {
+  const profile = req.body.profile || {};
+  const values = {
+    nickname: cleanProfileText(profile.nickname, 40),
+    phone: cleanProfileText(profile.phone, 30),
+    email: cleanProfileText(profile.email, 100),
+    facebook: cleanProfileText(profile.facebook, 100),
+    line: cleanProfileText(profile.line, 80),
+    contactType: normalizeContactType(profile.contactType),
+    image: validateProfileImage(profile.image)
+  };
+  await run(`
+    UPDATE users
+    SET profile_nickname=?, profile_phone=?, profile_email=?, profile_facebook=?, profile_line=?, profile_contact_type=?, profile_image=?
+    WHERE id=?
+  `, [values.nickname, values.phone, values.email, values.facebook, values.line, values.contactType, values.image, req.user.id]);
+  res.json({ user: userForClient(await getUser(req.user.id)) });
+}));
+
 app.put('/api/me/password', auth, asyncHandler(async (req, res) => {
   const currentPassword = String(req.body.currentPassword || '');
   const newPassword = String(req.body.newPassword || '');
   if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
-  const user = getUser(req.user.id);
+  const user = await getUser(req.user.id);
   if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
