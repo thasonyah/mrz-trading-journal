@@ -13,6 +13,13 @@ CREATE TABLE IF NOT EXISTS users (
   status TEXT NOT NULL DEFAULT 'active',
   portfolio_limit INTEGER NOT NULL DEFAULT 5,
   permissions_json TEXT NOT NULL DEFAULT '{}',
+  profile_nickname TEXT,
+  profile_phone TEXT,
+  profile_email TEXT,
+  profile_facebook TEXT,
+  profile_line TEXT,
+  profile_contact_type TEXT NOT NULL DEFAULT 'email',
+  profile_image TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -135,6 +142,13 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
 CREATE INDEX IF NOT EXISTS idx_trades_user_account_date ON trades(user_id, account_id, trade_date);
 CREATE INDEX IF NOT EXISTS idx_trades_setup ON trades(setup_grade, htf_bias, mtf_structure, ltf_entry);
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_type ON auth_tokens(user_id, type, used_at, expires_at);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_nickname TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_phone TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_facebook TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_line TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_contact_type TEXT NOT NULL DEFAULT 'email';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT;
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS max_tick DOUBLE PRECISION;
 `;
 
