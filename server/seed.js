@@ -32,8 +32,8 @@ const defaultOptions = [
 ];
 
 const defaultAssets = [
-  ['MNQ1', 0.25, 0.5],
   ['NQ1', 0.25, 5],
+  ['MNQ1', 0.25, 0.5],
   ['MGC1', 0.1, 1],
   ['GC1', 0.1, 10],
   ['XAUUSD', 0.01, 1],
