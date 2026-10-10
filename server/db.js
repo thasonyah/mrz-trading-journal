@@ -146,6 +146,7 @@ export function rowToTrade(row) {
     plannedR: row.planned_r,
     actualR: row.actual_r,
     maxR: row.max_r,
+    maxTick: row.max_tick,
     mfeR: row.mfe_r,
     maeR: row.mae_r,
     riskAmount: row.risk_amount,
