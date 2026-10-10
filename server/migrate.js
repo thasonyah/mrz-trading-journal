@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS trades (
   planned_r DOUBLE PRECISION,
   actual_r DOUBLE PRECISION,
   max_r DOUBLE PRECISION,
+  max_tick DOUBLE PRECISION,
   mfe_r DOUBLE PRECISION,
   mae_r DOUBLE PRECISION,
   risk_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -134,6 +135,7 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
 CREATE INDEX IF NOT EXISTS idx_trades_user_account_date ON trades(user_id, account_id, trade_date);
 CREATE INDEX IF NOT EXISTS idx_trades_setup ON trades(setup_grade, htf_bias, mtf_structure, ltf_entry);
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_type ON auth_tokens(user_id, type, used_at, expires_at);
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS max_tick DOUBLE PRECISION;
 `;
 
 async function migrateSqlite() {
