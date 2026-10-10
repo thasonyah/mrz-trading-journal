@@ -230,6 +230,7 @@ a:hover { text-decoration: underline; }
 .grid { display: grid; gap: 16px; }
 .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; }
+.dashboard-lower { margin-top: 16px; }
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(130px, 1fr));
@@ -294,6 +295,7 @@ a:hover { text-decoration: underline; }
 .checks label { display: flex; align-items: center; gap: 6px; color: var(--text-dim); text-transform: none; font-weight: 700; }
 .checks input { width: 14px; min-height: 14px; accent-color: var(--accent); }
 .inline-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.builder-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
 .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 .actions button:disabled, .page-head button:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -371,6 +373,27 @@ tr.selected td { color: var(--accent); font-weight: 800; }
 .table-check { display: inline-flex; gap: 6px; align-items: center; color: var(--text-dim); }
 .table-check input { width: 14px; min-height: 14px; accent-color: var(--accent); }
 .slim table { min-width: 520px; }
+.chart-link-table {
+  min-width: 168px;
+  width: auto;
+  border-collapse: collapse;
+  background: #0d0e13;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.chart-link-table th,
+.chart-link-table td {
+  padding: 4px 6px;
+  text-align: center;
+  border-bottom: 0;
+  border-right: 1px solid var(--border-soft);
+  font-size: 10px;
+}
+.chart-link-table th:last-child,
+.chart-link-table td:last-child { border-right: 0; }
+.chart-link-table a { margin: 0; display: block; }
+.chart-link-table span { color: var(--text-faint); }
 .playbook {
   width: 100%;
   min-height: 62vh;
@@ -423,7 +446,7 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   .page-head { display: grid; }
   .sidebar { padding: 16px 12px; }
   .sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .kpi-grid, .form-grid, .form-grid.compact, .risk-strip, .option-editor, .asset-row { grid-template-columns: 1fr; }
+  .kpi-grid, .form-grid, .form-grid.compact, .risk-strip, .option-editor, .asset-row, .builder-controls { grid-template-columns: 1fr; }
   .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .email-status { display: grid; }
   .chart-wrap { height: 260px; }
