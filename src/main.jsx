@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   BarChart3, BookOpen, CalendarDays, Download, FileText, Filter, Gauge, History, Mail,
-  LayoutDashboard, LogOut, Plus, Save, Settings, Shield, SlidersHorizontal, Trash2, Upload, UserRound
+  Eye, EyeOff, LayoutDashboard, LogOut, Plus, Save, Settings, Shield, SlidersHorizontal, Trash2, Upload, UserRound
 } from 'lucide-react';
 import './styles.css';
 
@@ -319,6 +319,7 @@ function AuthScreen({ setSession }) {
   const [username, setUsername] = useState('demo');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('demo123');
+  const [showPassword, setShowPassword] = useState(false);
   const [token, setToken] = useState(new URLSearchParams(location.search).get('token') || '');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -367,7 +368,7 @@ function AuthScreen({ setSession }) {
       {['login', 'register'].includes(mode) && <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>}
       {['register', 'forgot'].includes(mode) && <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>}
       {['verify', 'reset'].includes(mode) && <label>Token<input value={token} onChange={(e) => setToken(e.target.value)} /></label>}
-      {['login', 'register', 'reset'].includes(mode) && <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>}
+      {['login', 'register', 'reset'].includes(mode) && <label>Password<PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} visible={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>}
       {error && <div className="error">{error}</div>}
       {message && <div className="success-box">{message}</div>}
       <button className="primary" type="submit">{mode === 'login' ? 'Login' : mode === 'register' ? 'Create Account' : mode === 'forgot' ? 'Send reset link' : mode === 'verify' ? 'Verify email' : 'Reset password'}</button>
@@ -377,6 +378,11 @@ function AuthScreen({ setSession }) {
       </div>
     </form>
   </main>;
+}
+
+function PasswordInput({ value, onChange, visible, onToggle, autoComplete }) {
+  const Icon = visible ? EyeOff : Eye;
+  return <div className="password-input"><input type={visible ? 'text' : 'password'} value={value} onChange={onChange} autoComplete={autoComplete} /><button type="button" onClick={onToggle} aria-label={visible ? 'Hide password' : 'Show password'} title={visible ? 'Hide password' : 'Show password'}><Icon size={15} /></button></div>;
 }
 
 function App() {
@@ -767,6 +773,7 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
   const [assetDrafts, setAssetDrafts] = useState([]);
   const [savingOption, setSavingOption] = useState('');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [visiblePasswords, setVisiblePasswords] = useState({ currentPassword: false, newPassword: false, confirmPassword: false });
   useEffect(() => { setName(account?.name || ''); setBalance(account?.startingBalance || 50000); }, [account?.id]);
   useEffect(() => setOptionDrafts(Object.fromEntries(Object.entries(options).map(([key, vals]) => [key, vals.join('\n')]))), [options]);
   useEffect(() => setAssetDrafts(assets.map((asset) => ({ ...asset }))), [assets]);
@@ -839,9 +846,12 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
   function updateAsset(index, key, value) {
     setAssetDrafts(assetDrafts.map((asset, i) => i === index ? { ...asset, [key]: value } : asset));
   }
+  function togglePassword(key) {
+    setVisiblePasswords({ ...visiblePasswords, [key]: !visiblePasswords[key] });
+  }
   return <section><Header title="Settings" hint={`Portfolios, presets, and customizable field options (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />New portfolio</button>} />
     <div className="grid two"><Panel title="Portfolio Management"><div className="form-grid"><Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} /></Field></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
-    <Panel title="Security"><div className="form-grid"><Field label="Current password"><input type="password" value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} /></Field><Field label="New password"><input type="password" value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} /></Field><Field label="Confirm password"><input type="password" value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
+    <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
     <Panel title="Account note"><div className="empty compact-empty">Use Security to update your own password. Admins can manage roles, status, and portfolio limits from the Admin page.</div></Panel></div>
     <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)} disabled={savingOption === key}><Save size={14} />{savingOption === key ? 'Saving...' : `Save ${key}`}</button></div>)}</div></Panel></section>;
