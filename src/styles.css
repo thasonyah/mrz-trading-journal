@@ -72,6 +72,26 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
+.password-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: stretch;
+}
+.password-input input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 0;
+}
+.password-input button {
+  min-height: 38px;
+  justify-content: center;
+  padding: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  color: var(--text-dim);
+}
+.password-input:focus-within input,
+.password-input:focus-within button { border-color: var(--accent); }
 select {
   cursor: pointer;
   appearance: none;
