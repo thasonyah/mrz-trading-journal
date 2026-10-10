@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell
+  PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
 import {
   BarChart3, BookOpen, CalendarDays, Download, FileText, Filter, Gauge, History, Mail,
@@ -15,11 +15,18 @@ const API = import.meta.env.VITE_API_BASE
 const money = (n) => Number.isFinite(Number(n)) ? `${Number(n) < 0 ? '-' : ''}$${Math.abs(Number(n)).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}` : '-';
 const pct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
 const fmtR = (n) => Number.isFinite(Number(n)) ? `${Number(n).toFixed(2)}R` : '-';
+const fmtMinutes = (minutes) => {
+  const total = Math.round(Number(minutes) || 0);
+  if (!total) return '-';
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return hours ? `${hours}h ${mins}m` : `${mins}m`;
+};
 const today = () => new Date().toISOString().slice(0, 10);
 
 const defaultAssets = [
-  { symbol: 'MNQ1', tickSize: 0.25, dollarPerPoint: 0.5 },
   { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5 },
+  { symbol: 'MNQ1', tickSize: 0.25, dollarPerPoint: 0.5 },
   { symbol: 'MGC1', tickSize: 0.1, dollarPerPoint: 1 },
   { symbol: 'GC1', tickSize: 0.1, dollarPerPoint: 10 },
   { symbol: 'XAUUSD', tickSize: 0.01, dollarPerPoint: 1 }
@@ -38,12 +45,12 @@ const defaultOptions = {
 };
 
 const blankTrade = {
-  date: today(), asset: 'MNQ1', direction: 'short', session: 'NY', mode: 'BOSe', entryTime: '20:30', exitTime: '',
+  date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'BOSe', entryTime: '06:00', exitTime: '',
   durationTime: '', orderWaitMinutes: '', entryPrice: '', stopLoss: '', takeProfit: '', tpTicks: '', slTicks: '',
-  tickSize: 0.25, dollarPerPoint: 0.5, lotSize: '',
+  tickSize: 0.25, dollarPerPoint: 5, lotSize: '',
   riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: true,
   fvgPosition: 'Middle of OB', liquiditySweep: true, bos: true, choch: false, mtfStructure: 'BOS',
-  ltfEntry: 'OB + FVG', keyZone: 'Discount', setupGrade: 'A', setupScore: 80, maxR: '', mfeR: '', maeR: '',
+  ltfEntry: 'OB + FVG', keyZone: 'Discount', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
   ruleViolation: 'None', emotionBefore: 'Calm', emotionAfter: 'Confident', disciplineScore: 90,
   chartHtf: '', chartMtf: '', chartLtf: '', pictureUrl: '', tipUrl: '', notes: ''
 };
@@ -69,8 +76,50 @@ function withUser(path, userId) {
   return `${path}${path.includes('?') ? '&' : '?'}userId=${userId}`;
 }
 
+function parseTimeMinutes(value) {
+  if (!value || !/^\d{1,2}:\d{2}/.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return (hours * 60) + minutes;
+}
+
+function minutesBetween(entryTime, exitTime) {
+  const start = parseTimeMinutes(entryTime);
+  const end = parseTimeMinutes(exitTime);
+  if (start === null || end === null) return null;
+  return end >= start ? end - start : (24 * 60) - start + end;
+}
+
+function durationLabelFromTimes(entryTime, exitTime) {
+  const minutes = minutesBetween(entryTime, exitTime);
+  if (minutes === null) return '';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+function durationMinutesOf(trade) {
+  const direct = minutesBetween(trade.entryTime, trade.exitTime);
+  if (direct !== null) return direct;
+  const text = String(trade.durationTime || '').trim();
+  if (!text) return 0;
+  const clock = text.match(/^(\d+):(\d{2})$/);
+  if (clock) return (Number(clock[1]) * 60) + Number(clock[2]);
+  const h = text.match(/(\d+(?:\.\d+)?)\s*h/i);
+  const m = text.match(/(\d+(?:\.\d+)?)\s*m/i);
+  if (h || m) return (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
+  return Number(text) || 0;
+}
+
+function entryHourOf(trade) {
+  const minutes = parseTimeMinutes(trade.entryTime);
+  if (minutes === null) return 'No time';
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:00`;
+}
+
 function enrichTrade(input) {
   const t = { ...input };
+  const durationTime = t.entryTime && t.exitTime ? durationLabelFromTimes(t.entryTime, t.exitTime) : (t.durationTime || '');
   const entry = Number(t.entryPrice);
   const tickSize = Number(t.tickSize) || 1;
   const tpTicks = t.tpTicks === '' || t.tpTicks == null ? null : Number(t.tpTicks);
@@ -111,7 +160,10 @@ function enrichTrade(input) {
     slAmount,
     tpAmount,
     tpPercent: 0,
+    durationTime,
+    durationMinutes: durationMinutesOf({ ...t, durationTime }),
     maxR: t.maxR === '' ? plannedR : Number(t.maxR),
+    maxTick: t.maxTick === '' || t.maxTick == null ? null : Number(t.maxTick),
     mfeR: t.mfeR === '' ? Number(t.maxR || plannedR || 0) : Number(t.mfeR),
     maeR: t.maeR === '' ? 0 : Number(t.maeR),
     orderWaitMinutes: t.orderWaitMinutes === '' ? null : Number(t.orderWaitMinutes),
@@ -160,7 +212,9 @@ function computeLedger(trades, startingBalance = 50000) {
         dayName: trade.date ? new Date(`${trade.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' }) : '',
         monthNumber: trade.date ? new Date(`${trade.date}T00:00:00`).getMonth() + 1 : '',
         yearNumber: trade.date ? new Date(`${trade.date}T00:00:00`).getFullYear() : '',
-        weekNumber: trade.date ? getWeekNumber(trade.date) : ''
+        weekNumber: trade.date ? getWeekNumber(trade.date) : '',
+        entryHour: entryHourOf(trade),
+        durationMinutes: durationMinutesOf(t)
       };
     });
 }
@@ -190,10 +244,15 @@ function computeStats(trades, startingBalance = 50000) {
   });
   const rrs = rows.map((t) => Number(t.plannedR || 0)).filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
   const median = rrs.length ? (rrs.length % 2 ? rrs[(rrs.length - 1) / 2] : (rrs[rrs.length / 2 - 1] + rrs[rrs.length / 2]) / 2) : 0;
+  const durationRows = rows.filter((t) => Number(t.durationMinutes) > 0);
+  const asiaRows = rows.filter((t) => String(t.session || '').toUpperCase() === 'AS');
+  const ticks = rows.map((t) => Number(t.maxTick ?? t.tpTicks ?? 0)).filter((value) => Number.isFinite(value) && value > 0);
   const rrRows = [1, 1.5, 2, 3, 4, 5, 7, 10, 15, 20].map((level) => {
     const qualified = wins.filter((t) => Number(t.maxR || 0) >= level);
     return { level, count: qualified.length, winRate: decided ? qualified.length / decided : 0, value: qualified.reduce((s, t) => s + Number(t.riskAmount || 0) * level, 0) };
   });
+  const byEntryHour = groupBy(rows, 'entryHour');
+  const byLtfEntry = groupBy(rows, 'ltfEntry');
   return {
     total: trades.length,
     wins: wins.length,
@@ -204,6 +263,12 @@ function computeStats(trades, startingBalance = 50000) {
     profitFactor: grossLoss ? grossProfit / grossLoss : grossProfit ? Infinity : 0,
     expectancy,
     avgMaxR: wins.length ? wins.reduce((s, t) => s + Number(t.maxR || 0), 0) / wins.length : 0,
+    avgDuration: durationRows.length ? durationRows.reduce((s, t) => s + Number(t.durationMinutes || 0), 0) / durationRows.length : 0,
+    avgTick: ticks.length ? ticks.reduce((s, v) => s + v, 0) / ticks.length : 0,
+    asiaAvgRr: asiaRows.length ? asiaRows.reduce((s, t) => s + Number(t.actualR || t.plannedR || 0), 0) / asiaRows.length : 0,
+    asiaAvgTick: asiaRows.length ? asiaRows.reduce((s, t) => s + Number(t.maxTick ?? t.tpTicks ?? 0), 0) / asiaRows.length : 0,
+    bestEntryHour: byEntryHour[0],
+    topLtfEntry: byLtfEntry.sort((a, b) => b.trades - a.trades)[0],
     minRr: rrs[0] || 0,
     medianRr: median,
     maxRr: rrs[rrs.length - 1] || 0,
@@ -217,14 +282,35 @@ function groupBy(trades, key) {
   const map = new Map();
   trades.forEach((t) => {
     const value = key === 'day' ? new Date(`${t.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' }) : (t[key] || 'Unspecified');
-    const current = map.get(value) || { name: value, wins: 0, losses: 0, pnl: 0, trades: 0 };
+    const current = map.get(value) || { name: value, wins: 0, losses: 0, pnl: 0, trades: 0, rrSum: 0, rrCount: 0, tickSum: 0, tickCount: 0, durationSum: 0, durationCount: 0 };
     current.trades += 1;
     current.pnl += Number(t.pnl || 0);
     if (t.result === 'win') current.wins += 1;
     if (t.result === 'loss' || t.result === 'reversed') current.losses += 1;
+    const rr = Number(t.actualR || t.plannedR || 0);
+    if (Number.isFinite(rr)) {
+      current.rrSum += rr;
+      current.rrCount += 1;
+    }
+    const ticks = Number(t.maxTick ?? t.tpTicks ?? 0);
+    if (Number.isFinite(ticks) && ticks > 0) {
+      current.tickSum += ticks;
+      current.tickCount += 1;
+    }
+    const duration = Number(t.durationMinutes || 0);
+    if (Number.isFinite(duration) && duration > 0) {
+      current.durationSum += duration;
+      current.durationCount += 1;
+    }
     map.set(value, current);
   });
-  return [...map.values()].sort((a, b) => b.pnl - a.pnl);
+  return [...map.values()].map((row) => ({
+    ...row,
+    avgRr: row.rrCount ? row.rrSum / row.rrCount : 0,
+    avgTick: row.tickCount ? row.tickSum / row.tickCount : 0,
+    avgDuration: row.durationCount ? row.durationSum / row.durationCount : 0,
+    winRate: row.wins + row.losses ? row.wins / (row.wins + row.losses) : 0
+  })).sort((a, b) => b.pnl - a.pnl);
 }
 
 function AuthScreen({ setSession }) {
@@ -376,12 +462,15 @@ function App() {
 }
 
 function Dashboard({ trades, stats, account, setPage }) {
+  const ledger = useMemo(() => computeLedger(trades, account?.startingBalance || 50000), [trades, account?.startingBalance]);
   const daily = useMemo(() => {
     const map = new Map();
-    computeLedger(trades, account?.startingBalance || 50000).sort((a, b) => a.date.localeCompare(b.date)).forEach((t) => map.set(t.date, (map.get(t.date) || 0) + Number(t.pnl || 0)));
+    ledger.sort((a, b) => a.date.localeCompare(b.date)).forEach((t) => map.set(t.date, (map.get(t.date) || 0) + Number(t.pnl || 0)));
     let cum = 0;
     return [...map.entries()].map(([date, pnl]) => ({ date: date.slice(5), pnl, equity: (cum += pnl) }));
-  }, [trades]);
+  }, [ledger]);
+  const hourRows = useMemo(() => groupBy(ledger, 'entryHour').sort((a, b) => String(a.name).localeCompare(String(b.name))), [ledger]);
+  const ltfRows = useMemo(() => groupBy(ledger, 'ltfEntry').sort((a, b) => b.trades - a.trades), [ledger]);
   return <section>
     <Header title="Dashboard" hint={`${account?.name || 'Account'} performance overview`} action={<button className="primary" onClick={() => setPage('log')}><Plus size={16} />Log trade</button>} />
     <div className="kpi-grid">
@@ -392,6 +481,9 @@ function Dashboard({ trades, stats, account, setPage }) {
       <Kpi label="Max Drawdown" value={money(-stats.maxDrawdown)} tone="bad" />
       <Kpi label="Avg Max RR" value={fmtR(stats.avgMaxR)} />
       <Kpi label="RR Min / Med / Max" value={`${stats.minRr.toFixed(2)} / ${stats.medianRr.toFixed(2)} / ${stats.maxRr.toFixed(2)}`} />
+      <Kpi label="Avg Duration" value={fmtMinutes(stats.avgDuration)} />
+      <Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} />
+      <Kpi label="Top LTF Entry" value={stats.topLtfEntry?.name || '-'} />
     </div>
     <div className="grid two">
       <Panel title="Equity Curve">
@@ -399,6 +491,14 @@ function Dashboard({ trades, stats, account, setPage }) {
       </Panel>
       <Panel title="Setup Quality Mix">
         <ChartWrap empty={!trades.length}><PieChart><Pie data={groupBy(trades, 'setupGrade')} dataKey="trades" nameKey="name" outerRadius={92}>{groupBy(trades, 'setupGrade').map((_, i) => <Cell key={i} fill={['#1f7a8c','#bf9b30','#5a6578','#a24936','#6a7f4e'][i % 5]} />)}</Pie><Tooltip /></PieChart></ChartWrap>
+      </Panel>
+    </div>
+    <div className="grid two dashboard-lower">
+      <Panel title="Entry Time Edge">
+        <ChartWrap empty={!hourRows.length}><BarChart data={hourRows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v, n) => n === 'pnl' ? money(v) : v} /><Bar dataKey="trades" fill="#bf9b30" /><Bar dataKey="pnl" fill="#1f7a8c" /></BarChart></ChartWrap>
+      </Panel>
+      <Panel title="LTF Entry Receive">
+        <div className="table-wrap slim"><table><thead><tr><th>LTF Entry</th><th>Trades</th><th>Winrate</th><th>Avg RR</th><th>Avg Tick</th></tr></thead><tbody>{ltfRows.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtR(row.avgRr)}</td><td>{row.avgTick.toFixed(1)}</td></tr>)}</tbody></table></div>
       </Panel>
     </div>
   </section>;
@@ -417,6 +517,9 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
     if ((key === 'entryPrice' || key === 'direction' || key === 'tpTicks' || key === 'slTicks' || key === 'tickSize') && next.entryPrice) {
       const preview = enrichTrade(next);
       next = { ...next, stopLoss: preview.stopLoss || '', takeProfit: preview.takeProfit || '' };
+    }
+    if (key === 'entryTime' || key === 'exitTime') {
+      next = { ...next, durationTime: durationLabelFromTimes(next.entryTime, next.exitTime) || next.durationTime || '' };
     }
     setForm(next);
   }
@@ -460,7 +563,7 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
           <Field label="Mode"><Select options={options.mode} value={form.mode} onChange={(v) => set('mode', v)} /></Field>
           <Field label="Entry time"><input type="time" value={form.entryTime || ''} onChange={(e) => set('entryTime', e.target.value)} /></Field>
           <Field label="Exit time"><input type="time" value={form.exitTime || ''} onChange={(e) => set('exitTime', e.target.value)} /></Field>
-          <Field label="Duration Time"><input value={form.durationTime || ''} onChange={(e) => set('durationTime', e.target.value)} placeholder="00:20" /></Field>
+          <Field label="Duration Time"><input value={form.durationTime || ''} onChange={(e) => set('durationTime', e.target.value)} placeholder="Auto from time" readOnly={!!form.entryTime && !!form.exitTime} /></Field>
           <Field label="Direction"><select value={form.direction} onChange={(e) => set('direction', e.target.value)}><option value="long">Long</option><option value="short">Short</option></select></Field>
           <Field label="Result"><select value={form.result} onChange={(e) => set('result', e.target.value)}><option value="win">Win</option><option value="loss">Loss</option><option value="breakeven">Breakeven</option><option value="miss">Miss</option><option value="reversed">Reversed</option></select></Field>
         </div>
@@ -483,6 +586,7 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
           <Field label="Setup Grade"><select value={form.setupGrade} onChange={(e) => set('setupGrade', e.target.value)}><option>A+</option><option>A</option><option>B</option><option>C</option></select></Field>
           <Field label="Setup Score"><input type="number" min="0" max="100" value={form.setupScore} onChange={(e) => set('setupScore', e.target.value)} /></Field>
           <Field label="Max RR"><input type="number" step="any" value={form.maxR} onChange={(e) => set('maxR', e.target.value)} /></Field>
+          <Field label="Max Tick"><input type="number" step="any" value={form.maxTick ?? ''} onChange={(e) => set('maxTick', e.target.value)} /></Field>
           <Field label="MFE / MAE"><div className="inline-inputs"><input type="number" step="any" value={form.mfeR} onChange={(e) => set('mfeR', e.target.value)} /><input type="number" step="any" value={form.maeR} onChange={(e) => set('maeR', e.target.value)} /></div></Field>
           <Field label="Rule Violation"><Select options={options.ruleViolation} value={form.ruleViolation} onChange={(v) => set('ruleViolation', v)} /></Field>
           <Field label="Emotion After"><Select options={options.emotion} value={form.emotionAfter} onChange={(v) => set('emotionAfter', v)} /></Field>
@@ -525,9 +629,20 @@ function HistoryPage({ api, accountId, account, trades, setTrades, setEditing, s
     <Header title="History" hint={`${list.length} of ${trades.length} trades`} action={<button onClick={exportJson}><Download size={16} />Export JSON</button>} />
     <div className="toolbar"><div className="search"><Filter size={16} /><input placeholder="Search setup, notes, result, asset..." value={q} onChange={(e) => setQ(e.target.value)} /></div><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All results</option><option value="win">Win</option><option value="loss">Loss</option><option value="breakeven">Breakeven</option><option value="miss">Miss</option></select></div>
     <div className="table-wrap"><table><thead><tr>{['Date','Asset','Session','Mode','Dir','Ticks','RR','SL$','TP$','Balance','Con Loss','DD%','Setup','P&L','Charts',''].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>
-      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>{t.mode || '-'}</td><td>{t.direction}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}</td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td>{pct(t.ddLossPct * 100)}<small>{pct(t.sumDdLossPct * 100)}</small></td><td><b>{t.setupGrade}</b><small>{t.htfBias} {t.htfPoi}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}</td><td>{['chartHtf','chartMtf','chartLtf','pictureUrl','tipUrl'].filter((k) => t[k]).map((k) => <a key={k} href={t[k]} target="_blank" rel="noreferrer">↗</a>)}</td><td className="row-actions"><button onClick={() => setEditing(t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
+      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>{t.mode || '-'}</td><td>{t.direction}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}<small>Max {t.maxTick ?? '-'}</small></td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td>{pct(t.ddLossPct * 100)}<small>{pct(t.sumDdLossPct * 100)}</small></td><td><b>{t.setupGrade}</b><small>{t.htfBias} {t.htfPoi}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}</td><td><ChartLinks trade={t} /></td><td className="row-actions"><button onClick={() => setEditing(t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
     </tbody></table></div>
   </section>;
+}
+
+function ChartLinks({ trade }) {
+  const links = [
+    ['H', trade.chartHtf],
+    ['M', trade.chartMtf],
+    ['L', trade.chartLtf],
+    ['P', trade.pictureUrl],
+    ['T', trade.tipUrl]
+  ];
+  return <table className="chart-link-table"><thead><tr>{links.map(([label]) => <th key={label}>{label}</th>)}</tr></thead><tbody><tr>{links.map(([label, url]) => <td key={label}>{url ? <a href={url} target="_blank" rel="noreferrer">↗</a> : <span>-</span>}</td>)}</tr></tbody></table>;
 }
 
 function CalendarPage({ trades }) {
@@ -535,18 +650,70 @@ function CalendarPage({ trades }) {
   return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!days.length}><BarChart data={days}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => money(v)} /><Bar dataKey="pnl">{days.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#2f855a' : '#c2410c'} />)}</Bar></BarChart></ChartWrap></Panel></section>;
 }
 
+const dimensionOptions = [
+  ['entryHour', 'Entry Time'],
+  ['session', 'Session'],
+  ['ltfEntry', 'LTF Entry'],
+  ['htfBias', 'HTF Bias'],
+  ['htfPoi', 'HTF POI'],
+  ['mtfStructure', 'MTF Structure'],
+  ['keyZone', 'Key Zone'],
+  ['setupGrade', 'Setup Grade'],
+  ['ruleViolation', 'Rule Violation'],
+  ['emotionAfter', 'Emotion'],
+  ['dayName', 'Day']
+];
+
+const metricOptions = [
+  ['trades', 'Trades'],
+  ['pnl', 'Net P&L'],
+  ['winRate', 'Winrate'],
+  ['avgRr', 'Avg RR'],
+  ['avgTick', 'Avg Tick'],
+  ['avgDuration', 'Avg Duration']
+];
+
+function metricValue(row, metric) {
+  return metric === 'winRate' ? row.winRate * 100 : Number(row[metric] || 0);
+}
+
+function metricLabel(metric, value) {
+  if (metric === 'pnl') return money(value);
+  if (metric === 'winRate') return pct(value);
+  if (metric === 'avgRr') return fmtR(value);
+  if (metric === 'avgDuration') return fmtMinutes(value);
+  if (metric === 'avgTick') return Number(value || 0).toFixed(1);
+  return value;
+}
+
+function BuilderChart({ data, metric, chartType }) {
+  const rows = data.map((row) => ({ ...row, value: metricValue(row, metric) }));
+  if (chartType === 'pie') {
+    return <PieChart><Pie data={rows} dataKey="value" nameKey="name" outerRadius={92}>{rows.map((_, i) => <Cell key={i} fill={['#1f7a8c','#bf9b30','#5a6578','#a24936','#6a7f4e'][i % 5]} />)}</Pie><Tooltip formatter={(v) => metricLabel(metric, v)} /></PieChart>;
+  }
+  if (chartType === 'line') {
+    return <LineChart data={rows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => metricLabel(metric, v)} /><Line type="monotone" dataKey="value" stroke="#bf9b30" strokeWidth={2} dot /></LineChart>;
+  }
+  return <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => metricLabel(metric, v)} /><Bar dataKey="value" fill="#1f7a8c" /></BarChart>;
+}
+
 function AnalyticsPage({ trades, stats, account }) {
   const [dimension, setDimension] = useState('htfBias');
+  const [builderDimension, setBuilderDimension] = useState('entryHour');
+  const [builderMetric, setBuilderMetric] = useState('pnl');
+  const [chartType, setChartType] = useState('bar');
   const ledger = computeLedger(trades, account?.startingBalance || 50000);
   const data = groupBy(ledger, dimension);
+  const builderData = groupBy(ledger, builderDimension).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const dayRows = summaryRows(ledger, 'dayName', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
   const weekRows = summaryRows(ledger, 'weekNumber');
   const monthRows = summaryRows(ledger, 'monthNumber', Array.from({ length: 12 }, (_, i) => i + 1));
   return <section>
     <Header title="Analytics" hint="Find your edge by structure, time, psychology, and RR behavior" />
-    <div className="kpi-grid"><Kpi label="Trades" value={stats.total} /><Kpi label="Win / Loss / Miss" value={`${stats.wins} / ${stats.losses} / ${stats.miss}`} /><Kpi label="RR Min" value={fmtR(stats.minRr)} /><Kpi label="RR Median" value={fmtR(stats.medianRr)} /><Kpi label="RR Max" value={fmtR(stats.maxRr)} /><Kpi label="Best RR Hypothesis" value={money(stats.bestRr?.value || 0)} /></div>
+    <div className="kpi-grid"><Kpi label="Trades" value={stats.total} /><Kpi label="Win / Loss / Miss" value={`${stats.wins} / ${stats.losses} / ${stats.miss}`} /><Kpi label="Avg Duration" value={fmtMinutes(stats.avgDuration)} /><Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} /><Kpi label="Best Time" value={stats.bestEntryHour?.name || '-'} /><Kpi label="Best RR Hypothesis" value={money(stats.bestRr?.value || 0)} /></div>
+    <Panel title="Custom Analyzer"><div className="builder-controls"><Field label="Dimension"><select value={builderDimension} onChange={(e) => setBuilderDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Metric"><select value={builderMetric} onChange={(e) => setBuilderMetric(e.target.value)}>{metricOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Chart"><select value={chartType} onChange={(e) => setChartType(e.target.value)}><option value="bar">Bar</option><option value="line">Line</option><option value="pie">Pie</option></select></Field></div><ChartWrap empty={!builderData.length}><BuilderChart data={builderData} metric={builderMetric} chartType={chartType} /></ChartWrap></Panel>
     <div className="grid two">
-      <Panel title="Breakdown"><div className="toolbar"><select value={dimension} onChange={(e) => setDimension(e.target.value)}><option value="htfBias">HTF Bias</option><option value="mtfStructure">MTF Structure</option><option value="ltfEntry">LTF Entry</option><option value="keyZone">Key Zone</option><option value="setupGrade">Setup Grade</option><option value="ruleViolation">Rule Violation</option><option value="emotionAfter">Emotion</option><option value="day">Day</option></select></div><ChartWrap empty={!data.length}><BarChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v, n) => n === 'pnl' ? money(v) : v} /><Bar dataKey="wins" stackId="a" fill="#2f855a" /><Bar dataKey="losses" stackId="a" fill="#c2410c" /><Bar dataKey="pnl" fill="#1f7a8c" /></BarChart></ChartWrap></Panel>
+      <Panel title="Breakdown"><div className="toolbar"><select value={dimension} onChange={(e) => setDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><ChartWrap empty={!data.length}><BarChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v, n) => n === 'pnl' ? money(v) : v} /><Bar dataKey="wins" stackId="a" fill="#2f855a" /><Bar dataKey="losses" stackId="a" fill="#c2410c" /><Bar dataKey="pnl" fill="#1f7a8c" /></BarChart></ChartWrap></Panel>
       <Panel title="RR Recommendation"><div className="table-wrap slim"><table><thead><tr><th>RR</th><th>Qualifying wins</th><th>Win Rate</th><th>Hypothetical value</th></tr></thead><tbody>{stats.rrRows.map((r) => <tr key={r.level} className={r.level === stats.bestRr?.level ? 'selected' : ''}><td>{fmtR(r.level)}</td><td>{r.count}</td><td>{pct(r.winRate * 100)}</td><td>{money(r.value)}</td></tr>)}</tbody></table></div></Panel>
     </div>
     <div className="grid three summary-grid">
