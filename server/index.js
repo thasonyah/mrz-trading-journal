@@ -378,21 +378,73 @@ app.put('/api/me/password', auth, asyncHandler(async (req, res) => {
 app.get('/api/accounts', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
   const user = await getUser(userId);
-  const rows = await all('SELECT id, user_id "userId", name, type, currency, starting_balance "startingBalance", is_active "isActive", sort_order "sortOrder" FROM accounts WHERE user_id=? ORDER BY sort_order, id', [userId]);
+  const rows = await all(`
+    SELECT id, user_id "userId", name, type, currency, starting_balance "startingBalance", is_active "isActive", sort_order "sortOrder",
+      provider, plan_name "planName", market_type "marketType", profit_target "profitTarget", daily_loss_limit "dailyLossLimit",
+      max_drawdown "maxDrawdown", trailing_drawdown "trailingDrawdown", max_contracts "maxContracts", min_trading_days "minTradingDays",
+      consistency_rule "consistencyRule", payout_rule "payoutRule", commission_type "commissionType", commission_amount "commissionAmount",
+      commission_scope "commissionScope", commission_notes "commissionNotes"
+    FROM accounts WHERE user_id=? ORDER BY sort_order, id
+  `, [userId]);
   res.json({ accounts: rows, portfolioLimit: user?.portfolio_limit || 5 });
 }));
+
+function normalizeAccount(body = {}) {
+  return {
+    name: String(body.name || 'New Account').trim(),
+    type: body.type || 'live',
+    startingBalance: Number(body.startingBalance || 50000),
+    provider: body.provider || null,
+    planName: body.planName || null,
+    marketType: body.marketType || null,
+    profitTarget: body.profitTarget === '' || body.profitTarget == null ? null : Number(body.profitTarget),
+    dailyLossLimit: body.dailyLossLimit === '' || body.dailyLossLimit == null ? null : Number(body.dailyLossLimit),
+    maxDrawdown: body.maxDrawdown === '' || body.maxDrawdown == null ? null : Number(body.maxDrawdown),
+    trailingDrawdown: body.trailingDrawdown === '' || body.trailingDrawdown == null ? null : Number(body.trailingDrawdown),
+    maxContracts: body.maxContracts === '' || body.maxContracts == null ? null : Number(body.maxContracts),
+    minTradingDays: body.minTradingDays === '' || body.minTradingDays == null ? null : Number(body.minTradingDays),
+    consistencyRule: body.consistencyRule || null,
+    payoutRule: body.payoutRule || null,
+    commissionType: body.commissionType || 'none',
+    commissionAmount: body.commissionAmount === '' || body.commissionAmount == null ? 0 : Number(body.commissionAmount),
+    commissionScope: body.commissionScope || 'roundTrip',
+    commissionNotes: body.commissionNotes || null
+  };
+}
 
 app.post('/api/accounts', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
   const user = await getUser(userId);
   const count = Number((await get('SELECT COUNT(*) count FROM accounts WHERE user_id=?', [userId])).count);
   if (count >= (user?.portfolio_limit || 5)) return res.status(400).json({ error: `Portfolio limit reached (${user?.portfolio_limit || 5})` });
-  const id = await insert('INSERT INTO accounts (user_id, name, type, starting_balance, sort_order) VALUES (?, ?, ?, ?, ?)', [
+  const account = normalizeAccount(req.body);
+  const id = await insert(`
+    INSERT INTO accounts (
+      user_id, name, type, starting_balance, sort_order, provider, plan_name, market_type, profit_target, daily_loss_limit,
+      max_drawdown, trailing_drawdown, max_contracts, min_trading_days, consistency_rule, payout_rule, commission_type,
+      commission_amount, commission_scope, commission_notes
+    ) VALUES (${Array.from({ length: 20 }, () => '?').join(',')})
+  `, [
     userId,
-    String(req.body.name || 'New Account').trim(),
-    req.body.type || 'live',
-    Number(req.body.startingBalance || 50000),
-    count + 1
+    account.name,
+    account.type,
+    account.startingBalance,
+    count + 1,
+    account.provider,
+    account.planName,
+    account.marketType,
+    account.profitTarget,
+    account.dailyLossLimit,
+    account.maxDrawdown,
+    account.trailingDrawdown,
+    account.maxContracts,
+    account.minTradingDays,
+    account.consistencyRule,
+    account.payoutRule,
+    account.commissionType,
+    account.commissionAmount,
+    account.commissionScope,
+    account.commissionNotes
   ]);
   res.json({ id });
 }));
@@ -400,10 +452,31 @@ app.post('/api/accounts', auth, asyncHandler(async (req, res) => {
 app.put('/api/accounts/:id', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
   await ensureAccount(userId, req.params.id);
-  await run('UPDATE accounts SET name=?, type=?, starting_balance=? WHERE id=? AND user_id=?', [
-    String(req.body.name || 'Account').trim(),
-    req.body.type || 'live',
-    Number(req.body.startingBalance || 0),
+  const account = normalizeAccount(req.body);
+  await run(`
+    UPDATE accounts SET name=?, type=?, starting_balance=?, provider=?, plan_name=?, market_type=?, profit_target=?, daily_loss_limit=?,
+      max_drawdown=?, trailing_drawdown=?, max_contracts=?, min_trading_days=?, consistency_rule=?, payout_rule=?, commission_type=?,
+      commission_amount=?, commission_scope=?, commission_notes=?
+    WHERE id=? AND user_id=?
+  `, [
+    account.name,
+    account.type,
+    account.startingBalance,
+    account.provider,
+    account.planName,
+    account.marketType,
+    account.profitTarget,
+    account.dailyLossLimit,
+    account.maxDrawdown,
+    account.trailingDrawdown,
+    account.maxContracts,
+    account.minTradingDays,
+    account.consistencyRule,
+    account.payoutRule,
+    account.commissionType,
+    account.commissionAmount,
+    account.commissionScope,
+    account.commissionNotes,
     req.params.id,
     userId
   ]);
@@ -493,7 +566,7 @@ app.get('/api/accounts/:accountId/trades', auth, asyncHandler(async (req, res) =
 
 const tradeColumns = [
   'trade_date','asset','direction','session','entry_time','exit_time','duration_time','order_wait_minutes','mode','entry_price','stop_loss','take_profit',
-  'tp_ticks','sl_ticks','tick_size','dollar_per_point','planned_r','actual_r','max_r','max_tick','mfe_r','mae_r','risk_amount','lot_size','pnl','sl_amount',
+  'tp_ticks','sl_ticks','tick_size','dollar_per_point','planned_r','actual_r','max_r','max_tick','mfe_r','mae_r','risk_amount','lot_size','gross_pnl','commission_amount','net_pnl','pnl','sl_amount',
   'tp_amount','tp_percent','balance_after','con_loss','sum_con_loss_amount','dd_loss_pct','sum_dd_loss_pct','result','picture_url','tip_url',
   'htf_bias','htf_poi','poi_type','poi_has_fvg','fvg_position',
   'liquidity_sweep','bos','choch','mtf_structure','ltf_entry','key_zone','setup_grade','setup_score','rule_violation','emotion_before','emotion_after',
@@ -527,7 +600,10 @@ function normalizeTrade(body) {
     mae_r: b.maeR ?? null,
     risk_amount: b.riskAmount || 0,
     lot_size: b.lotSize || 0,
-    pnl: b.pnl || 0,
+    gross_pnl: b.grossPnl ?? b.pnl ?? 0,
+    commission_amount: b.commissionAmount ?? 0,
+    net_pnl: b.netPnl ?? b.pnl ?? 0,
+    pnl: b.pnl ?? b.netPnl ?? 0,
     sl_amount: b.slAmount ?? null,
     tp_amount: b.tpAmount ?? null,
     tp_percent: b.tpPercent ?? null,
