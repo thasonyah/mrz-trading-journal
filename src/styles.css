@@ -312,15 +312,20 @@ a:hover { text-decoration: underline; }
 .chart-wrap {
   height: 300px;
   min-width: 0;
-  background: #0d0e13;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.018), rgba(255,255,255,0)),
+    #0d0e13;
   border: 1px solid var(--border-soft);
   border-radius: 6px;
-  padding: 8px;
+  padding: 12px 12px 8px;
+  position: relative;
+  transition: border-color .16s, background .16s;
 }
-.recharts-wrapper, .recharts-surface { overflow: visible; }
-.recharts-cartesian-axis-tick-value, .recharts-text { fill: var(--text-dim); }
-.recharts-cartesian-grid line { stroke: #22242c; }
-.recharts-tooltip-wrapper { outline: none; }
+.chart-wrap:hover { border-color: #343642; }
+.chart-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
 .empty {
   min-height: 160px;
   height: 100%;
