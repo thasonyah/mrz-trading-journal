@@ -82,6 +82,83 @@ function auth(req, res, next) {
   }
 }
 
+const blankAccountTemplate = {
+  name: 'New Account',
+  type: 'live',
+  provider: 'Custom',
+  planName: '',
+  marketType: 'Futures',
+  startingBalance: 50000,
+  profitTarget: '',
+  dailyLossLimit: '',
+  maxDrawdown: '',
+  trailingDrawdown: '',
+  maxContracts: '',
+  minTradingDays: '',
+  consistencyRule: '',
+  payoutRule: '',
+  commissionType: 'none',
+  commissionAmount: '',
+  commissionScope: 'roundTrip',
+  commissionNotes: ''
+};
+
+const defaultPortfolioTemplates = [
+  { templateKey: 'custom', label: 'Custom / Manual', values: blankAccountTemplate },
+  {
+    templateKey: 'apex-50k',
+    label: 'Apex 50K Futures',
+    values: {
+      ...blankAccountTemplate,
+      name: 'Apex 50K', provider: 'Apex', planName: '50K Evaluation', marketType: 'Futures', startingBalance: 50000,
+      profitTarget: 3000, maxDrawdown: 2500, trailingDrawdown: 2500, maxContracts: 10, minTradingDays: 7,
+      consistencyRule: 'Edit to match the current Apex rule for this plan.',
+      payoutRule: 'Edit to match the current payout rule before trading live.',
+      commissionType: 'perContract', commissionAmount: 2.8, commissionScope: 'roundTrip',
+      commissionNotes: 'Estimated round-trip futures commission per contract. Adjust to your broker statement.'
+    }
+  },
+  {
+    templateKey: 'topstep-50k',
+    label: 'TopStep 50K Futures',
+    values: {
+      ...blankAccountTemplate,
+      name: 'TopStep 50K', provider: 'TopStep', planName: '50K Trading Combine', marketType: 'Futures', startingBalance: 50000,
+      profitTarget: 3000, dailyLossLimit: 1000, maxDrawdown: 2000, maxContracts: 5, minTradingDays: 2,
+      consistencyRule: 'Edit to match current TopStep rules.',
+      payoutRule: 'Edit to match current TopStep payout rules.',
+      commissionType: 'perContract', commissionAmount: 2.8, commissionScope: 'roundTrip',
+      commissionNotes: 'Estimated round-trip futures commission per contract.'
+    }
+  },
+  {
+    templateKey: 'ftmo-100k',
+    label: 'FTMO 100K Forex/CFD',
+    values: {
+      ...blankAccountTemplate,
+      name: 'FTMO 100K', provider: 'FTMO', planName: '100K Challenge', marketType: 'Forex / CFD', startingBalance: 100000,
+      profitTarget: 10000, dailyLossLimit: 5000, maxDrawdown: 10000, minTradingDays: 4,
+      consistencyRule: 'Edit to match the instrument and account type.',
+      payoutRule: 'Edit to match current FTMO payout rules.',
+      commissionType: 'fixed', commissionAmount: 0, commissionScope: 'roundTrip',
+      commissionNotes: 'Set fixed commission manually if your symbol has a fee.'
+    }
+  },
+  {
+    templateKey: 'mff-100k',
+    label: 'MFF / Prop 100K',
+    values: {
+      ...blankAccountTemplate,
+      name: 'Prop 100K', provider: 'MFF / Prop Firm', planName: '100K Evaluation', marketType: 'Forex / CFD', startingBalance: 100000,
+      profitTarget: 8000, dailyLossLimit: 5000, maxDrawdown: 12000, minTradingDays: 5,
+      consistencyRule: 'Use as a starter template; verify all rules with the active plan.',
+      payoutRule: 'Edit payout split, minimum days, and withdrawal cycle.',
+      commissionType: 'fixed', commissionAmount: 0, commissionScope: 'roundTrip',
+      commissionNotes: 'Manual starter preset for prop-firm style accounts.'
+    }
+  }
+];
+
 async function ensureAccount(userId, accountId) {
   const account = await get('SELECT * FROM accounts WHERE id=? AND user_id=?', [accountId, userId]);
   if (!account) {
@@ -411,6 +488,85 @@ function normalizeAccount(body = {}) {
     commissionNotes: body.commissionNotes || null
   };
 }
+
+async function ensurePortfolioTemplates() {
+  const count = Number((await get('SELECT COUNT(*) count FROM portfolio_templates')).count);
+  if (count) return;
+  for (const [index, template] of defaultPortfolioTemplates.entries()) {
+    await run(
+      'INSERT INTO portfolio_templates (template_key, label, values_json, sort_order, is_active) VALUES (?, ?, ?, ?, ?)',
+      [template.templateKey, template.label, JSON.stringify(template.values), index + 1, boolValue(true)]
+    );
+  }
+}
+
+function templateForClient(row) {
+  return {
+    id: row.id,
+    templateKey: row.template_key,
+    label: row.label,
+    values: JSON.parse(row.values_json || '{}'),
+    sortOrder: row.sort_order,
+    isActive: Boolean(row.is_active)
+  };
+}
+
+function normalizeTemplate(body = {}) {
+  const values = { ...blankAccountTemplate, ...(body.values || {}) };
+  return {
+    templateKey: String(body.templateKey || values.provider || values.name || 'custom').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `template-${Date.now()}`,
+    label: String(body.label || values.name || 'New template').trim(),
+    values,
+    sortOrder: Number(body.sortOrder || 99),
+    isActive: body.isActive !== false
+  };
+}
+
+app.get('/api/portfolio-templates', auth, asyncHandler(async (req, res) => {
+  await ensurePortfolioTemplates();
+  const rows = await all('SELECT * FROM portfolio_templates WHERE is_active=? ORDER BY sort_order, label', [boolValue(true)]);
+  res.json({ templates: rows.map(templateForClient) });
+}));
+
+app.get('/api/admin/portfolio-templates', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  await ensurePortfolioTemplates();
+  const rows = await all('SELECT * FROM portfolio_templates ORDER BY sort_order, label');
+  res.json({ templates: rows.map(templateForClient) });
+}));
+
+app.post('/api/admin/portfolio-templates', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  const template = normalizeTemplate(req.body);
+  const id = await insert('INSERT INTO portfolio_templates (template_key, label, values_json, sort_order, is_active) VALUES (?, ?, ?, ?, ?)', [
+    template.templateKey,
+    template.label,
+    JSON.stringify(template.values),
+    template.sortOrder,
+    boolValue(template.isActive)
+  ]);
+  res.json({ template: templateForClient(await get('SELECT * FROM portfolio_templates WHERE id=?', [id])) });
+}));
+
+app.put('/api/admin/portfolio-templates/:id', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  const template = normalizeTemplate(req.body);
+  await run('UPDATE portfolio_templates SET template_key=?, label=?, values_json=?, sort_order=?, is_active=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [
+    template.templateKey,
+    template.label,
+    JSON.stringify(template.values),
+    template.sortOrder,
+    boolValue(template.isActive),
+    req.params.id
+  ]);
+  res.json({ template: templateForClient(await get('SELECT * FROM portfolio_templates WHERE id=?', [req.params.id])) });
+}));
+
+app.delete('/api/admin/portfolio-templates/:id', auth, asyncHandler(async (req, res) => {
+  if (!canAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  await run('DELETE FROM portfolio_templates WHERE id=?', [req.params.id]);
+  res.json({ ok: true });
+}));
 
 app.post('/api/accounts', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
@@ -771,6 +927,7 @@ app.get('/api/admin/export/json', auth, asyncHandler(async (req, res) => {
     users: await all('SELECT id, username, email, role, email_verified, status, portfolio_limit, permissions_json, created_at FROM users ORDER BY id'),
     accounts: await all('SELECT * FROM accounts ORDER BY user_id, sort_order, id'),
     trades: await all('SELECT * FROM trades ORDER BY user_id, account_id, trade_date, id'),
+    portfolioTemplates: await all('SELECT * FROM portfolio_templates ORDER BY sort_order, label'),
     optionSets: await all('SELECT * FROM option_sets ORDER BY user_id, field_key'),
     assetPresets: await all('SELECT * FROM asset_presets ORDER BY user_id, sort_order, symbol'),
     journalNotes: await all('SELECT * FROM journal_notes ORDER BY user_id, account_id, title')
