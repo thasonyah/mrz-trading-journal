@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-  AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
-} from 'recharts';
+import 'chart.js/auto';
+import { Chart as ReactChart } from 'react-chartjs-2';
 import {
   BarChart3, BookOpen, CalendarDays, Download, FileText, Filter, Gauge, History, Mail,
   Eye, EyeOff, LayoutDashboard, LogOut, Plus, Save, Settings, Shield, SlidersHorizontal, Trash2, Upload, UserRound
@@ -55,6 +53,117 @@ function resizeProfileImage(file) {
     reader.onerror = () => reject(new Error('Could not read image'));
     reader.readAsDataURL(file);
   });
+}
+
+const chartColors = {
+  gold: '#e0a92e',
+  goldSoft: 'rgba(224, 169, 46, 0.28)',
+  teal: '#1f7a8c',
+  tealSoft: 'rgba(31, 122, 140, 0.24)',
+  win: '#2ecb70',
+  winSoft: 'rgba(46, 203, 112, 0.26)',
+  loss: '#e5484d',
+  lossSoft: 'rgba(229, 72, 77, 0.26)',
+  purple: '#a78bfa',
+  slate: '#5a6578',
+  muted: '#8b8d99',
+  grid: '#22242c'
+};
+const chartPalette = [chartColors.teal, chartColors.gold, chartColors.purple, chartColors.win, chartColors.loss, chartColors.slate, '#6a7f4e', '#c06f3d'];
+
+function chartGradient(ctx, color) {
+  const chart = ctx.chart;
+  const area = chart.chartArea;
+  if (!area) return color;
+  const gradient = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, 'rgba(13, 14, 19, 0.04)');
+  return gradient;
+}
+
+function chartFormat(kind, value) {
+  if (kind === 'money') return money(value);
+  if (kind === 'percent') return pct(value);
+  if (kind === 'rr') return fmtR(value);
+  if (kind === 'minutes') return fmtMinutes(value);
+  if (kind === 'tick') return Number(value || 0).toFixed(1);
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }) : value;
+}
+
+function chartOptions(kind = 'number') {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { intersect: false, mode: 'index' },
+    animation: { duration: 650, easing: 'easeOutQuart' },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: chartColors.muted,
+          boxWidth: 10,
+          boxHeight: 10,
+          usePointStyle: true,
+          pointStyle: 'rectRounded',
+          padding: 14
+        }
+      },
+      tooltip: {
+        backgroundColor: '#101116',
+        borderColor: '#2f313b',
+        borderWidth: 1,
+        titleColor: '#e8e9ee',
+        bodyColor: '#d9d5d3',
+        padding: 12,
+        cornerRadius: 8,
+        displayColors: true,
+        callbacks: {
+          label(context) {
+            const label = context.dataset.label ? `${context.dataset.label}: ` : '';
+            const formatter = context.dataset.valueKind || kind;
+            return `${label}${chartFormat(formatter, context.parsed.y ?? context.parsed)}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(34, 36, 44, 0.55)', drawBorder: false },
+        ticks: { color: chartColors.muted, maxRotation: 0, autoSkipPadding: 14 }
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: chartColors.grid, drawBorder: false },
+        ticks: { color: chartColors.muted, callback: (value) => chartFormat(kind, value) }
+      }
+    }
+  };
+}
+
+function makeOptions(kind = 'number', overrides = {}) {
+  const base = chartOptions(kind);
+  const hasScaleOverride = Object.prototype.hasOwnProperty.call(overrides, 'scales');
+  const scales = hasScaleOverride && overrides.scales === null ? undefined : {
+    ...base.scales,
+    ...(overrides.scales || {}),
+    x: { ...base.scales.x, ...(overrides.scales?.x || {}) },
+    y: { ...base.scales.y, ...(overrides.scales?.y || {}) }
+  };
+  return {
+    ...base,
+    ...overrides,
+    plugins: {
+      ...base.plugins,
+      ...(overrides.plugins || {}),
+      legend: { ...base.plugins.legend, ...(overrides.plugins?.legend || {}) },
+      tooltip: { ...base.plugins.tooltip, ...(overrides.plugins?.tooltip || {}) }
+    },
+    scales
+  };
+}
+
+function SmartChart({ type = 'bar', data, options }) {
+  return <ReactChart type={type} data={data} options={options} />;
 }
 
 const defaultAssets = [
@@ -526,6 +635,60 @@ function Dashboard({ trades, stats, account, setPage }) {
   }, [ledger]);
   const hourRows = useMemo(() => groupBy(ledger, 'entryHour').sort((a, b) => String(a.name).localeCompare(String(b.name))), [ledger]);
   const ltfRows = useMemo(() => groupBy(ledger, 'ltfEntry').sort((a, b) => b.trades - a.trades), [ledger]);
+  const setupRows = useMemo(() => groupBy(trades, 'setupGrade'), [trades]);
+  const equityChart = {
+    labels: daily.map((row) => row.date),
+    datasets: [{
+      label: 'Equity',
+      data: daily.map((row) => row.equity),
+      borderColor: chartColors.teal,
+      backgroundColor: (ctx) => chartGradient(ctx, chartColors.tealSoft),
+      borderWidth: 2,
+      fill: true,
+      tension: 0.38,
+      pointRadius: 3,
+      pointHoverRadius: 6,
+      valueKind: 'money'
+    }]
+  };
+  const setupChart = {
+    labels: setupRows.map((row) => row.name),
+    datasets: [{
+      label: 'Trades',
+      data: setupRows.map((row) => row.trades),
+      backgroundColor: setupRows.map((_, index) => chartPalette[index % chartPalette.length]),
+      borderColor: '#101116',
+      borderWidth: 2,
+      hoverOffset: 10
+    }]
+  };
+  const entryTimeChart = {
+    labels: hourRows.map((row) => row.name),
+    datasets: [
+      {
+        label: 'Trades',
+        data: hourRows.map((row) => row.trades),
+        backgroundColor: chartColors.goldSoft,
+        borderColor: chartColors.gold,
+        borderWidth: 1,
+        borderRadius: 5,
+        valueKind: 'number',
+        yAxisID: 'y'
+      },
+      {
+        type: 'line',
+        label: 'P&L',
+        data: hourRows.map((row) => row.pnl),
+        borderColor: chartColors.teal,
+        backgroundColor: chartColors.teal,
+        borderWidth: 2,
+        tension: 0.36,
+        pointRadius: 3,
+        valueKind: 'money',
+        yAxisID: 'y1'
+      }
+    ]
+  };
   return <section>
     <Header title="Dashboard" hint={`${account?.name || 'Account'} performance overview`} action={<button className="primary" onClick={() => setPage('log')}><Plus size={16} />Log trade</button>} />
     <div className="kpi-grid">
@@ -542,15 +705,15 @@ function Dashboard({ trades, stats, account, setPage }) {
     </div>
     <div className="grid two">
       <Panel title="Equity Curve">
-        <ChartWrap empty={!daily.length}><AreaChart data={daily}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip formatter={(v) => money(v)} /><Area type="monotone" dataKey="equity" stroke="#1f7a8c" fill="#1f7a8c33" /></AreaChart></ChartWrap>
+        <ChartWrap empty={!daily.length}><SmartChart type="line" data={equityChart} options={makeOptions('money')} /></ChartWrap>
       </Panel>
       <Panel title="Setup Quality Mix">
-        <ChartWrap empty={!trades.length}><PieChart><Pie data={groupBy(trades, 'setupGrade')} dataKey="trades" nameKey="name" outerRadius={92}>{groupBy(trades, 'setupGrade').map((_, i) => <Cell key={i} fill={['#1f7a8c','#bf9b30','#5a6578','#a24936','#6a7f4e'][i % 5]} />)}</Pie><Tooltip /></PieChart></ChartWrap>
+        <ChartWrap empty={!trades.length}><SmartChart type="doughnut" data={setupChart} options={makeOptions('number', { cutout: '62%', scales: null })} /></ChartWrap>
       </Panel>
     </div>
     <div className="grid two dashboard-lower">
       <Panel title="Entry Time Edge">
-        <ChartWrap empty={!hourRows.length}><BarChart data={hourRows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v, n) => n === 'pnl' ? money(v) : v} /><Bar dataKey="trades" fill="#bf9b30" /><Bar dataKey="pnl" fill="#1f7a8c" /></BarChart></ChartWrap>
+        <ChartWrap empty={!hourRows.length}><SmartChart type="bar" data={entryTimeChart} options={makeOptions('number', { scales: { y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: chartColors.muted, callback: (value) => money(value) } } } })} /></ChartWrap>
       </Panel>
       <Panel title="LTF Entry Receive">
         <div className="table-wrap slim"><table><thead><tr><th>LTF Entry</th><th>Trades</th><th>Winrate</th><th>Avg RR</th><th>Avg Tick</th></tr></thead><tbody>{ltfRows.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtR(row.avgRr)}</td><td>{row.avgTick.toFixed(1)}</td></tr>)}</tbody></table></div>
@@ -702,7 +865,19 @@ function ChartLinks({ trade }) {
 
 function CalendarPage({ trades }) {
   const days = useMemo(() => groupBy(computeLedger(trades), 'date').map((d) => ({ ...d, name: d.name.slice(5) })).sort((a, b) => a.name.localeCompare(b.name)), [trades]);
-  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!days.length}><BarChart data={days}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => money(v)} /><Bar dataKey="pnl">{days.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#2f855a' : '#c2410c'} />)}</Bar></BarChart></ChartWrap></Panel></section>;
+  const dayChart = {
+    labels: days.map((day) => day.name),
+    datasets: [{
+      label: 'Daily P&L',
+      data: days.map((day) => day.pnl),
+      backgroundColor: days.map((day) => day.pnl >= 0 ? chartColors.winSoft : chartColors.lossSoft),
+      borderColor: days.map((day) => day.pnl >= 0 ? chartColors.win : chartColors.loss),
+      borderWidth: 1,
+      borderRadius: 5,
+      valueKind: 'money'
+    }]
+  };
+  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!days.length}><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap></Panel></section>;
 }
 
 const dimensionOptions = [
@@ -743,13 +918,40 @@ function metricLabel(metric, value) {
 
 function BuilderChart({ data, metric, chartType }) {
   const rows = data.map((row) => ({ ...row, value: metricValue(row, metric) }));
-  if (chartType === 'pie') {
-    return <PieChart><Pie data={rows} dataKey="value" nameKey="name" outerRadius={92}>{rows.map((_, i) => <Cell key={i} fill={['#1f7a8c','#bf9b30','#5a6578','#a24936','#6a7f4e'][i % 5]} />)}</Pie><Tooltip formatter={(v) => metricLabel(metric, v)} /></PieChart>;
+  const valueKind = metric === 'pnl' ? 'money' : metric === 'winRate' ? 'percent' : metric === 'avgRr' ? 'rr' : metric === 'avgDuration' ? 'minutes' : metric === 'avgTick' ? 'tick' : 'number';
+  if (chartType === 'pie' || chartType === 'doughnut') {
+    return <SmartChart type={chartType} data={{
+      labels: rows.map((row) => row.name),
+      datasets: [{
+        label: metricOptions.find(([value]) => value === metric)?.[1] || 'Value',
+        data: rows.map((row) => row.value),
+        backgroundColor: rows.map((_, index) => chartPalette[index % chartPalette.length]),
+        borderColor: '#101116',
+        borderWidth: 2,
+        hoverOffset: 10,
+        valueKind
+      }]
+    }} options={makeOptions(valueKind, { cutout: chartType === 'doughnut' ? '62%' : 0, scales: null })} />;
   }
+  const chartData = {
+    labels: rows.map((row) => row.name),
+    datasets: [{
+      label: metricOptions.find(([value]) => value === metric)?.[1] || 'Value',
+      data: rows.map((row) => row.value),
+      backgroundColor: chartType === 'line' ? (ctx) => chartGradient(ctx, chartColors.goldSoft) : chartColors.tealSoft,
+      borderColor: chartType === 'line' ? chartColors.gold : chartColors.teal,
+      borderWidth: 2,
+      borderRadius: chartType === 'bar' ? 5 : 0,
+      fill: chartType === 'line',
+      tension: 0.36,
+      pointRadius: chartType === 'line' ? 3 : 0,
+      valueKind
+    }]
+  };
   if (chartType === 'line') {
-    return <LineChart data={rows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => metricLabel(metric, v)} /><Line type="monotone" dataKey="value" stroke="#bf9b30" strokeWidth={2} dot /></LineChart>;
+    return <SmartChart type="line" data={chartData} options={makeOptions(valueKind)} />;
   }
-  return <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => metricLabel(metric, v)} /><Bar dataKey="value" fill="#1f7a8c" /></BarChart>;
+  return <SmartChart type="bar" data={chartData} options={makeOptions(valueKind)} />;
 }
 
 function AnalyticsPage({ trades, stats, account }) {
@@ -760,15 +962,54 @@ function AnalyticsPage({ trades, stats, account }) {
   const ledger = computeLedger(trades, account?.startingBalance || 50000);
   const data = groupBy(ledger, dimension);
   const builderData = groupBy(ledger, builderDimension).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const breakdownChart = {
+    labels: data.map((row) => row.name),
+    datasets: [
+      {
+        label: 'Wins',
+        data: data.map((row) => row.wins),
+        backgroundColor: chartColors.winSoft,
+        borderColor: chartColors.win,
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'outcome',
+        valueKind: 'number',
+        yAxisID: 'y'
+      },
+      {
+        label: 'Losses',
+        data: data.map((row) => row.losses),
+        backgroundColor: chartColors.lossSoft,
+        borderColor: chartColors.loss,
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'outcome',
+        valueKind: 'number',
+        yAxisID: 'y'
+      },
+      {
+        type: 'line',
+        label: 'P&L',
+        data: data.map((row) => row.pnl),
+        borderColor: chartColors.gold,
+        backgroundColor: chartColors.gold,
+        borderWidth: 2,
+        tension: 0.35,
+        pointRadius: 3,
+        valueKind: 'money',
+        yAxisID: 'y1'
+      }
+    ]
+  };
   const dayRows = summaryRows(ledger, 'dayName', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
   const weekRows = summaryRows(ledger, 'weekNumber');
   const monthRows = summaryRows(ledger, 'monthNumber', Array.from({ length: 12 }, (_, i) => i + 1));
   return <section>
     <Header title="Analytics" hint="Find your edge by structure, time, psychology, and RR behavior" />
     <div className="kpi-grid"><Kpi label="Trades" value={stats.total} /><Kpi label="Win / Loss / Miss" value={`${stats.wins} / ${stats.losses} / ${stats.miss}`} /><Kpi label="Avg Duration" value={fmtMinutes(stats.avgDuration)} /><Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} /><Kpi label="Best Time" value={stats.bestEntryHour?.name || '-'} /><Kpi label="Best RR Hypothesis" value={money(stats.bestRr?.value || 0)} /></div>
-    <Panel title="Custom Analyzer"><div className="builder-controls"><Field label="Dimension"><select value={builderDimension} onChange={(e) => setBuilderDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Metric"><select value={builderMetric} onChange={(e) => setBuilderMetric(e.target.value)}>{metricOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Chart"><select value={chartType} onChange={(e) => setChartType(e.target.value)}><option value="bar">Bar</option><option value="line">Line</option><option value="pie">Pie</option></select></Field></div><ChartWrap empty={!builderData.length}><BuilderChart data={builderData} metric={builderMetric} chartType={chartType} /></ChartWrap></Panel>
+    <Panel title="Custom Analyzer"><div className="builder-controls"><Field label="Dimension"><select value={builderDimension} onChange={(e) => setBuilderDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Metric"><select value={builderMetric} onChange={(e) => setBuilderMetric(e.target.value)}>{metricOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Chart"><select value={chartType} onChange={(e) => setChartType(e.target.value)}><option value="bar">Bar</option><option value="line">Line</option><option value="doughnut">Doughnut</option><option value="pie">Pie</option></select></Field></div><ChartWrap empty={!builderData.length}><BuilderChart data={builderData} metric={builderMetric} chartType={chartType} /></ChartWrap></Panel>
     <div className="grid two">
-      <Panel title="Breakdown"><div className="toolbar"><select value={dimension} onChange={(e) => setDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><ChartWrap empty={!data.length}><BarChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v, n) => n === 'pnl' ? money(v) : v} /><Bar dataKey="wins" stackId="a" fill="#2f855a" /><Bar dataKey="losses" stackId="a" fill="#c2410c" /><Bar dataKey="pnl" fill="#1f7a8c" /></BarChart></ChartWrap></Panel>
+      <Panel title="Breakdown"><div className="toolbar"><select value={dimension} onChange={(e) => setDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><ChartWrap empty={!data.length}><SmartChart type="bar" data={breakdownChart} options={makeOptions('number', { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, grid: { color: chartColors.grid }, ticks: { color: chartColors.muted } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: chartColors.muted, callback: (value) => money(value) } } } })} /></ChartWrap></Panel>
       <Panel title="RR Recommendation"><div className="table-wrap slim"><table><thead><tr><th>RR</th><th>Qualifying wins</th><th>Win Rate</th><th>Hypothetical value</th></tr></thead><tbody>{stats.rrRows.map((r) => <tr key={r.level} className={r.level === stats.bestRr?.level ? 'selected' : ''}><td>{fmtR(r.level)}</td><td>{r.count}</td><td>{pct(r.winRate * 100)}</td><td>{money(r.value)}</td></tr>)}</tbody></table></div></Panel>
     </div>
     <div className="grid three summary-grid">
@@ -1041,6 +1282,6 @@ function Panel({ title, children }) { return <div className="panel"><div classNa
 function Kpi({ label, value, tone }) { return <div className={`kpi ${tone || ''}`}><span>{label}</span><b>{value}</b></div>; }
 function Field({ label, children }) { return <label className="field"><span>{label}</span>{children}</label>; }
 function Select({ options = [], value, onChange }) { return <select value={value || ''} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o}>{o}</option>)}</select>; }
-function ChartWrap({ empty, children }) { return <div className="chart-wrap">{empty ? <div className="empty">No data yet</div> : <ResponsiveContainer width="100%" height={300}>{children}</ResponsiveContainer>}</div>; }
+function ChartWrap({ empty, children }) { return <div className="chart-wrap">{empty ? <div className="empty">No data yet</div> : children}</div>; }
 
 createRoot(document.getElementById('root')).render(<App />);
