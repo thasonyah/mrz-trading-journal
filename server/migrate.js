@@ -30,6 +30,21 @@ CREATE TABLE IF NOT EXISTS accounts (
   type TEXT NOT NULL DEFAULT 'backtest',
   currency TEXT NOT NULL DEFAULT 'USD',
   starting_balance DOUBLE PRECISION NOT NULL DEFAULT 50000,
+  provider TEXT,
+  plan_name TEXT,
+  market_type TEXT,
+  profit_target DOUBLE PRECISION,
+  daily_loss_limit DOUBLE PRECISION,
+  max_drawdown DOUBLE PRECISION,
+  trailing_drawdown DOUBLE PRECISION,
+  max_contracts DOUBLE PRECISION,
+  min_trading_days INTEGER,
+  consistency_rule TEXT,
+  payout_rule TEXT,
+  commission_type TEXT NOT NULL DEFAULT 'none',
+  commission_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  commission_scope TEXT NOT NULL DEFAULT 'roundTrip',
+  commission_notes TEXT,
   is_active BOOLEAN NOT NULL DEFAULT true,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -82,6 +97,9 @@ CREATE TABLE IF NOT EXISTS trades (
   mae_r DOUBLE PRECISION,
   risk_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
   lot_size DOUBLE PRECISION NOT NULL DEFAULT 0,
+  gross_pnl DOUBLE PRECISION,
+  commission_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  net_pnl DOUBLE PRECISION,
   pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
   sl_amount DOUBLE PRECISION,
   tp_amount DOUBLE PRECISION,
@@ -149,7 +167,26 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_facebook TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_line TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_contact_type TEXT NOT NULL DEFAULT 'email';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plan_name TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS market_type TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS profit_target DOUBLE PRECISION;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS daily_loss_limit DOUBLE PRECISION;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS max_drawdown DOUBLE PRECISION;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS trailing_drawdown DOUBLE PRECISION;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS max_contracts DOUBLE PRECISION;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS min_trading_days INTEGER;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS consistency_rule TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS payout_rule TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS commission_type TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS commission_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS commission_scope TEXT NOT NULL DEFAULT 'roundTrip';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS commission_notes TEXT;
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS max_tick DOUBLE PRECISION;
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS gross_pnl DOUBLE PRECISION;
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS commission_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS net_pnl DOUBLE PRECISION;
+UPDATE trades SET gross_pnl=COALESCE(gross_pnl, pnl), net_pnl=COALESCE(net_pnl, pnl), commission_amount=COALESCE(commission_amount, 0);
 `;
 
 async function migrateSqlite() {
