@@ -207,15 +207,7 @@ function dailyResultChart(rows = []) {
         borderColor: rows.map((row) => Number(row.pnl || 0) >= 0 ? chartColors.win : chartColors.loss),
         borderWidth: 1,
         borderRadius: 5,
-        valueKind: 'money'
-      },
-      {
-        label: 'SL',
-        data: rows.map((row) => -Math.abs(Number(row.sl || 0))),
-        backgroundColor: chartColors.lossSoft,
-        borderColor: chartColors.loss,
-        borderWidth: 1,
-        borderRadius: 5,
+        stack: 'daily-result',
         valueKind: 'money'
       },
       {
@@ -225,11 +217,29 @@ function dailyResultChart(rows = []) {
         borderColor: chartColors.gold,
         borderWidth: 1,
         borderRadius: 5,
+        stack: 'daily-result',
+        valueKind: 'money'
+      },
+      {
+        label: 'SL',
+        data: rows.map((row) => -Math.abs(Number(row.sl || 0))),
+        backgroundColor: chartColors.lossSoft,
+        borderColor: chartColors.loss,
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'daily-result',
         valueKind: 'money'
       }
     ]
   };
 }
+
+const dailyResultOptions = makeOptions('money', {
+  scales: {
+    x: { stacked: true },
+    y: { stacked: true }
+  }
+});
 
 const defaultAssets = [
   { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5 },
@@ -923,7 +933,7 @@ function Dashboard({ trades, stats, account, setPage }) {
             {dashboardWeeks.map((week) => <option key={week} value={week}>{weekLabel(week)}</option>)}
           </select>
         </div>
-        <ChartWrap empty={!dashboardWeeks.length} tall><SmartChart type="bar" data={dashboardDailyChart} options={makeOptions('money')} /></ChartWrap>
+        <ChartWrap empty={!dashboardWeeks.length} tall><SmartChart type="bar" data={dashboardDailyChart} options={dailyResultOptions} /></ChartWrap>
       </Panel>
     </div>
     <div className="grid two dashboard-lower">
@@ -1107,7 +1117,7 @@ function CalendarPage({ trades, account }) {
     return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
   }, [ledger]);
   const dayChart = dailyResultChart(dailyResults);
-  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!dailyResults.length} tall><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap></Panel></section>;
+  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!dailyResults.length} tall><SmartChart type="bar" data={dayChart} options={dailyResultOptions} /></ChartWrap></Panel></section>;
 }
 
 const dimensionOptions = [
