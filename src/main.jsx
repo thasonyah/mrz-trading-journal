@@ -90,6 +90,32 @@ function chartFormat(kind, value) {
   return Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }) : value;
 }
 
+function dateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfWeek(dateString) {
+  const date = new Date(`${dateString}T00:00:00`);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  return dateKey(date);
+}
+
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return dateKey(date);
+}
+
+function shortDate(dateString) {
+  return dateString ? dateString.slice(5) : '';
+}
+
+function weekLabel(weekStart) {
+  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 6))}`;
+}
+
 function chartOptions(kind = 'number') {
   return {
     responsive: true,
@@ -121,7 +147,11 @@ function chartOptions(kind = 'number') {
           label(context) {
             const label = context.dataset.label ? `${context.dataset.label}: ` : '';
             const formatter = context.dataset.valueKind || kind;
-            return `${label}${chartFormat(formatter, context.parsed.y ?? context.parsed)}`;
+            const parsed = context.parsed;
+            const value = typeof parsed === 'object'
+              ? (Number.isFinite(Number(parsed.y)) && context.chart.options.indexAxis !== 'y' ? parsed.y : parsed.x)
+              : parsed;
+            return `${label}${chartFormat(formatter, value)}`;
           }
         }
       }
@@ -346,6 +376,7 @@ function startingBalanceOf(accountOrBalance = 50000) {
 }
 
 function commissionForTrade(trade, grossPnl, account) {
+  if (trade.result === 'miss') return 0;
   const type = account?.commissionType || 'none';
   if (trade.commissionAmount !== '' && trade.commissionAmount != null && (Number(trade.commissionAmount) > 0 || type === 'none')) return Number(trade.commissionAmount) || 0;
   const amount = Number(account?.commissionAmount || 0);
@@ -744,6 +775,7 @@ function ProfileCard({ user }) {
 }
 
 function Dashboard({ trades, stats, account, setPage }) {
+  const [selectedWeek, setSelectedWeek] = useState('');
   const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
   const daily = useMemo(() => {
     const map = new Map();
@@ -753,7 +785,27 @@ function Dashboard({ trades, stats, account, setPage }) {
   }, [ledger]);
   const hourRows = useMemo(() => groupBy(ledger, 'entryHour').sort((a, b) => String(a.name).localeCompare(String(b.name))), [ledger]);
   const ltfRows = useMemo(() => groupBy(ledger, 'ltfEntry').sort((a, b) => b.trades - a.trades), [ledger]);
-  const setupRows = useMemo(() => groupBy(ledger, 'setupGrade'), [ledger]);
+  const dashboardWeeks = useMemo(() => [...new Set(ledger.filter((row) => row.date).map((row) => startOfWeek(row.date)))].sort(), [ledger]);
+  useEffect(() => {
+    if (!dashboardWeeks.length) setSelectedWeek('');
+    else if (!selectedWeek || !dashboardWeeks.includes(selectedWeek)) setSelectedWeek(dashboardWeeks[dashboardWeeks.length - 1]);
+  }, [dashboardWeeks, selectedWeek]);
+  const activeWeek = selectedWeek || dashboardWeeks[dashboardWeeks.length - 1] || '';
+  const weekDaily = useMemo(() => {
+    if (!activeWeek) return [];
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(activeWeek, index);
+      const rows = ledger.filter((trade) => trade.date === date);
+      return {
+        date,
+        label: shortDate(date),
+        pnl: rows.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0),
+        sl: rows.reduce((sum, trade) => sum + ((trade.result === 'loss' || trade.result === 'reversed') ? Number(trade.slAmount || 0) : 0), 0),
+        commission: rows.reduce((sum, trade) => sum + Number(trade.commissionAmount || 0), 0),
+        trades: rows.length
+      };
+    });
+  }, [activeWeek, ledger]);
   const equityChart = {
     labels: daily.map((row) => row.date),
     datasets: [{
@@ -769,15 +821,16 @@ function Dashboard({ trades, stats, account, setPage }) {
       valueKind: 'money'
     }]
   };
-  const setupChart = {
-    labels: setupRows.map((row) => row.name),
+  const dashboardDailyChart = {
+    labels: weekDaily.map((row) => row.label),
     datasets: [{
-      label: 'Trades',
-      data: setupRows.map((row) => row.trades),
-      backgroundColor: setupRows.map((_, index) => chartPalette[index % chartPalette.length]),
-      borderColor: '#101116',
-      borderWidth: 2,
-      hoverOffset: 10
+      label: 'Daily P&L',
+      data: weekDaily.map((row) => row.pnl),
+      backgroundColor: weekDaily.map((row) => row.pnl >= 0 ? chartColors.winSoft : chartColors.lossSoft),
+      borderColor: weekDaily.map((row) => row.pnl >= 0 ? chartColors.win : chartColors.loss),
+      borderWidth: 1,
+      borderRadius: 5,
+      valueKind: 'money'
     }]
   };
   const entryTimeChart = {
@@ -807,6 +860,18 @@ function Dashboard({ trades, stats, account, setPage }) {
       }
     ]
   };
+  const ltfReceiveChart = {
+    labels: ltfRows.map((row) => row.name),
+    datasets: [{
+      label: 'Trades',
+      data: ltfRows.map((row) => row.trades),
+      backgroundColor: ltfRows.map((_, index) => chartPalette[index % chartPalette.length]),
+      borderColor: ltfRows.map((_, index) => chartPalette[index % chartPalette.length]),
+      borderWidth: 1,
+      borderRadius: 5,
+      valueKind: 'number'
+    }]
+  };
   return <section>
     <Header title="Dashboard" hint={`${account?.name || 'Account'} performance overview`} action={<button className="primary" onClick={() => setPage('log')}><Plus size={16} />Log trade</button>} />
     <div className="kpi-grid">
@@ -827,8 +892,14 @@ function Dashboard({ trades, stats, account, setPage }) {
       <Panel title="Equity Curve">
         <ChartWrap empty={!daily.length}><SmartChart type="line" data={equityChart} options={makeOptions('money')} /></ChartWrap>
       </Panel>
-      <Panel title="Setup Quality Mix">
-        <ChartWrap empty={!trades.length}><SmartChart type="doughnut" data={setupChart} options={makeOptions('number', { cutout: '62%', scales: null })} /></ChartWrap>
+      <Panel title="Daily Results">
+        <div className="panel-toolbar">
+          <span>{activeWeek ? `Week ${weekLabel(activeWeek)}` : 'No week selected'}</span>
+          <select value={activeWeek} onChange={(e) => setSelectedWeek(e.target.value)} disabled={!dashboardWeeks.length}>
+            {dashboardWeeks.map((week) => <option key={week} value={week}>{weekLabel(week)}</option>)}
+          </select>
+        </div>
+        <ChartWrap empty={!dashboardWeeks.length}><SmartChart type="bar" data={dashboardDailyChart} options={makeOptions('money')} /></ChartWrap>
       </Panel>
     </div>
     <div className="grid two dashboard-lower">
@@ -837,6 +908,9 @@ function Dashboard({ trades, stats, account, setPage }) {
       </Panel>
       <Panel title="LTF Entry Receive">
         <div className="table-wrap slim"><table><thead><tr><th>LTF Entry</th><th>Trades</th><th>Winrate</th><th>Avg RR</th><th>Avg Tick</th></tr></thead><tbody>{ltfRows.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtR(row.avgRr)}</td><td>{row.avgTick.toFixed(1)}</td></tr>)}</tbody></table></div>
+        <div className="chart-subsection">
+          <ChartWrap empty={!ltfRows.length}><SmartChart type="bar" data={ltfReceiveChart} options={makeOptions('number', { indexAxis: 'y', plugins: { legend: { display: false } } })} /></ChartWrap>
+        </div>
       </Panel>
     </div>
   </section>;
@@ -846,12 +920,21 @@ function TradeForm({ api, accountId, account, options, assets, editing, setEditi
   const [form, setForm] = useState(editing || blankTrade);
   useEffect(() => setForm(editing || blankTrade), [editing]);
   const calc = enrichTrade(form, account);
+  const commissionInputValue = form.result === 'miss'
+    ? 0
+    : (form.commissionAmount !== '' && form.commissionAmount != null ? form.commissionAmount : (calc.commissionAmount || ''));
+  const commissionHint = form.result === 'miss'
+    ? 'Miss trade: commission is 0'
+    : account?.commissionType && account.commissionType !== 'none'
+      ? `Auto from ${account.name || 'portfolio'}: ${commissionTypeLabels[account.commissionType]}`
+      : 'No portfolio commission';
   function set(key, value) {
     let next = { ...form, [key]: value };
     if (key === 'asset') {
       const preset = assets.find((asset) => asset.symbol === value);
       if (preset) next = { ...next, tickSize: preset.tickSize, dollarPerPoint: preset.dollarPerPoint };
     }
+    if (key === 'result' && value === 'miss') next = { ...next, commissionAmount: '' };
     if ((key === 'entryPrice' || key === 'direction' || key === 'tpTicks' || key === 'slTicks' || key === 'tickSize') && next.entryPrice) {
       const preview = enrichTrade(next, account);
       next = { ...next, stopLoss: preview.stopLoss || '', takeProfit: preview.takeProfit || '' };
@@ -886,7 +969,7 @@ function TradeForm({ api, accountId, account, options, assets, editing, setEditi
           <Field label="Stop"><input type="number" step="any" value={form.stopLoss} onChange={(e) => set('stopLoss', e.target.value)} /></Field>
           <Field label="Target"><input type="number" step="any" value={form.takeProfit} onChange={(e) => set('takeProfit', e.target.value)} /></Field>
           <Field label="$ / point"><input type="number" step="any" value={form.dollarPerPoint} onChange={(e) => set('dollarPerPoint', e.target.value)} /></Field>
-          <Field label="Commission"><input type="number" step="any" value={form.commissionAmount ?? ''} onChange={(e) => set('commissionAmount', e.target.value)} placeholder={account?.commissionType && account.commissionType !== 'none' ? 'Auto from portfolio' : '0'} /></Field>
+          <Field label="Commission"><input type="number" step="any" value={commissionInputValue} onChange={(e) => set('commissionAmount', e.target.value)} placeholder="0" disabled={form.result === 'miss'} /><small className="field-hint">{commissionHint}</small></Field>
         </div>
         <div className="risk-strip">
           <Kpi label="Planned RR" value={fmtR(calc.plannedR)} />
@@ -987,7 +1070,18 @@ function ChartLinks({ trade }) {
 }
 
 function CalendarPage({ trades, account }) {
-  const days = useMemo(() => groupBy(computeLedger(trades, account || 50000), 'date').map((d) => ({ ...d, name: d.name.slice(5) })).sort((a, b) => a.name.localeCompare(b.name)), [trades, account]);
+  const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
+  const days = useMemo(() => groupBy(ledger, 'date').map((d) => ({ ...d, name: d.name.slice(5) })).sort((a, b) => a.name.localeCompare(b.name)), [ledger]);
+  const dailyCosts = useMemo(() => {
+    const map = new Map();
+    ledger.forEach((trade) => {
+      const current = map.get(trade.date) || { date: trade.date, label: shortDate(trade.date), sl: 0, commission: 0 };
+      current.sl += trade.result === 'loss' || trade.result === 'reversed' ? Number(trade.slAmount || 0) : 0;
+      current.commission += Number(trade.commissionAmount || 0);
+      map.set(trade.date, current);
+    });
+    return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }, [ledger]);
   const dayChart = {
     labels: days.map((day) => day.name),
     datasets: [{
@@ -1000,7 +1094,32 @@ function CalendarPage({ trades, account }) {
       valueKind: 'money'
     }]
   };
-  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!days.length}><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap></Panel></section>;
+  const costChart = {
+    labels: dailyCosts.map((day) => day.label),
+    datasets: [
+      {
+        label: 'SL',
+        data: dailyCosts.map((day) => day.sl),
+        backgroundColor: chartColors.lossSoft,
+        borderColor: chartColors.loss,
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'cost',
+        valueKind: 'money'
+      },
+      {
+        label: 'Commission',
+        data: dailyCosts.map((day) => day.commission),
+        backgroundColor: chartColors.goldSoft,
+        borderColor: chartColors.gold,
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'cost',
+        valueKind: 'money'
+      }
+    ]
+  };
+  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!days.length}><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap><div className="chart-subsection"><ChartWrap empty={!dailyCosts.length}><SmartChart type="bar" data={costChart} options={makeOptions('money', { scales: { x: { stacked: true }, y: { stacked: true } } })} /></ChartWrap></div></Panel></section>;
 }
 
 const dimensionOptions = [
