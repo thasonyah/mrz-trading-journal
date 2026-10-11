@@ -196,6 +196,41 @@ function SmartChart({ type = 'bar', data, options }) {
   return <ReactChart type={type} data={data} options={options} />;
 }
 
+function dailyResultChart(rows = []) {
+  return {
+    labels: rows.map((row) => row.label || shortDate(row.date)),
+    datasets: [
+      {
+        label: 'Daily P&L',
+        data: rows.map((row) => Number(row.pnl || 0)),
+        backgroundColor: rows.map((row) => Number(row.pnl || 0) >= 0 ? chartColors.winSoft : chartColors.lossSoft),
+        borderColor: rows.map((row) => Number(row.pnl || 0) >= 0 ? chartColors.win : chartColors.loss),
+        borderWidth: 1,
+        borderRadius: 5,
+        valueKind: 'money'
+      },
+      {
+        label: 'SL',
+        data: rows.map((row) => -Math.abs(Number(row.sl || 0))),
+        backgroundColor: chartColors.lossSoft,
+        borderColor: chartColors.loss,
+        borderWidth: 1,
+        borderRadius: 5,
+        valueKind: 'money'
+      },
+      {
+        label: 'Commission',
+        data: rows.map((row) => -Math.abs(Number(row.commission || 0))),
+        backgroundColor: chartColors.goldSoft,
+        borderColor: chartColors.gold,
+        borderWidth: 1,
+        borderRadius: 5,
+        valueKind: 'money'
+      }
+    ]
+  };
+}
+
 const defaultAssets = [
   { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5 },
   { symbol: 'MNQ1', tickSize: 0.25, dollarPerPoint: 0.5 },
@@ -821,18 +856,7 @@ function Dashboard({ trades, stats, account, setPage }) {
       valueKind: 'money'
     }]
   };
-  const dashboardDailyChart = {
-    labels: weekDaily.map((row) => row.label),
-    datasets: [{
-      label: 'Daily P&L',
-      data: weekDaily.map((row) => row.pnl),
-      backgroundColor: weekDaily.map((row) => row.pnl >= 0 ? chartColors.winSoft : chartColors.lossSoft),
-      borderColor: weekDaily.map((row) => row.pnl >= 0 ? chartColors.win : chartColors.loss),
-      borderWidth: 1,
-      borderRadius: 5,
-      valueKind: 'money'
-    }]
-  };
+  const dashboardDailyChart = dailyResultChart(weekDaily);
   const entryTimeChart = {
     labels: hourRows.map((row) => row.name),
     datasets: [
@@ -899,7 +923,7 @@ function Dashboard({ trades, stats, account, setPage }) {
             {dashboardWeeks.map((week) => <option key={week} value={week}>{weekLabel(week)}</option>)}
           </select>
         </div>
-        <ChartWrap empty={!dashboardWeeks.length}><SmartChart type="bar" data={dashboardDailyChart} options={makeOptions('money')} /></ChartWrap>
+        <ChartWrap empty={!dashboardWeeks.length} tall><SmartChart type="bar" data={dashboardDailyChart} options={makeOptions('money')} /></ChartWrap>
       </Panel>
     </div>
     <div className="grid two dashboard-lower">
@@ -1071,55 +1095,19 @@ function ChartLinks({ trade }) {
 
 function CalendarPage({ trades, account }) {
   const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
-  const days = useMemo(() => groupBy(ledger, 'date').map((d) => ({ ...d, name: d.name.slice(5) })).sort((a, b) => a.name.localeCompare(b.name)), [ledger]);
-  const dailyCosts = useMemo(() => {
+  const dailyResults = useMemo(() => {
     const map = new Map();
     ledger.forEach((trade) => {
-      const current = map.get(trade.date) || { date: trade.date, label: shortDate(trade.date), sl: 0, commission: 0 };
+      const current = map.get(trade.date) || { date: trade.date, label: shortDate(trade.date), pnl: 0, sl: 0, commission: 0 };
+      current.pnl += Number(trade.pnl || 0);
       current.sl += trade.result === 'loss' || trade.result === 'reversed' ? Number(trade.slAmount || 0) : 0;
       current.commission += Number(trade.commissionAmount || 0);
       map.set(trade.date, current);
     });
     return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
   }, [ledger]);
-  const dayChart = {
-    labels: days.map((day) => day.name),
-    datasets: [{
-      label: 'Daily P&L',
-      data: days.map((day) => day.pnl),
-      backgroundColor: days.map((day) => day.pnl >= 0 ? chartColors.winSoft : chartColors.lossSoft),
-      borderColor: days.map((day) => day.pnl >= 0 ? chartColors.win : chartColors.loss),
-      borderWidth: 1,
-      borderRadius: 5,
-      valueKind: 'money'
-    }]
-  };
-  const costChart = {
-    labels: dailyCosts.map((day) => day.label),
-    datasets: [
-      {
-        label: 'SL',
-        data: dailyCosts.map((day) => day.sl),
-        backgroundColor: chartColors.lossSoft,
-        borderColor: chartColors.loss,
-        borderWidth: 1,
-        borderRadius: 5,
-        stack: 'cost',
-        valueKind: 'money'
-      },
-      {
-        label: 'Commission',
-        data: dailyCosts.map((day) => day.commission),
-        backgroundColor: chartColors.goldSoft,
-        borderColor: chartColors.gold,
-        borderWidth: 1,
-        borderRadius: 5,
-        stack: 'cost',
-        valueKind: 'money'
-      }
-    ]
-  };
-  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!days.length}><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap><div className="chart-subsection"><ChartWrap empty={!dailyCosts.length}><SmartChart type="bar" data={costChart} options={makeOptions('money', { scales: { x: { stacked: true }, y: { stacked: true } } })} /></ChartWrap></div></Panel></section>;
+  const dayChart = dailyResultChart(dailyResults);
+  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!dailyResults.length} tall><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap></Panel></section>;
 }
 
 const dimensionOptions = [
@@ -1587,6 +1575,6 @@ function Panel({ title, children }) { return <div className="panel"><div classNa
 function Kpi({ label, value, tone }) { return <div className={`kpi ${tone || ''}`}><span>{label}</span><b>{value}</b></div>; }
 function Field({ label, children }) { return <label className="field"><span>{label}</span>{children}</label>; }
 function Select({ options = [], value, onChange }) { return <select value={value || ''} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o}>{o}</option>)}</select>; }
-function ChartWrap({ empty, children }) { return <div className="chart-wrap">{empty ? <div className="empty">No data yet</div> : children}</div>; }
+function ChartWrap({ empty, children, tall = false }) { return <div className={`chart-wrap ${tall ? 'tall' : ''}`}>{empty ? <div className="empty">No data yet</div> : children}</div>; }
 
 createRoot(document.getElementById('root')).render(<App />);
