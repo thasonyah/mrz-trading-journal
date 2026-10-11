@@ -309,6 +309,22 @@ a:hover { text-decoration: underline; }
   text-transform: uppercase;
   margin-bottom: 14px;
 }
+.panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -2px 0 12px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 800;
+}
+.panel-toolbar select {
+  width: auto;
+  min-width: 150px;
+  min-height: 34px;
+  font-size: 12px;
+}
 .chart-wrap {
   height: 300px;
   min-width: 0;
@@ -326,6 +342,12 @@ a:hover { text-decoration: underline; }
   width: 100% !important;
   height: 100% !important;
 }
+.chart-subsection {
+  margin-top: 14px;
+}
+.chart-subsection .chart-wrap {
+  height: 220px;
+}
 .empty {
   min-height: 160px;
   height: 100%;
@@ -341,6 +363,14 @@ a:hover { text-decoration: underline; }
 .form-grid.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field { display: grid; gap: 6px; color: var(--text-faint); font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
 .field input, .field select, .field textarea { color: var(--text); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.field-hint {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: none;
+}
 .risk-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin-top: 12px; }
 .checks { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
 .checks label { display: flex; align-items: center; gap: 6px; color: var(--text-dim); text-transform: none; font-weight: 700; }
@@ -497,6 +527,43 @@ tr.selected td { color: var(--accent); font-weight: 800; }
 .portfolio-summary span { color: var(--text-dim); font-weight: 800; overflow-wrap: anywhere; }
 .portfolio-summary b { color: var(--accent); font-family: var(--mono); font-size: 15px; }
 .portfolio-summary small { grid-column: 1 / -1; color: var(--text-faint); }
+.template-manager {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 14px;
+}
+.template-list {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.template-list button {
+  min-height: 48px;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 2px;
+  text-align: left;
+}
+.template-list button.selected {
+  color: var(--accent);
+  border-color: rgba(224, 169, 46, .4);
+  background: var(--accent-soft);
+}
+.template-list b { color: inherit; }
+.template-list span {
+  color: var(--text-faint);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.template-form { display: grid; gap: 12px; min-width: 0; }
+.template-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 .settings-lower { margin-top: 16px; margin-bottom: 16px; }
 .compact-empty { min-height: 132px; padding: 18px; text-align: center; line-height: 1.5; }
 .profile-settings {
@@ -577,10 +644,13 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   .sidebar nav { grid-template-columns: 1fr; gap: 8px; }
   .sidebar nav button { min-height: 46px; font-size: 16px; }
   .sidebar-foot { display: none; }
-  .kpi-grid, .form-grid, .form-grid.compact, .risk-strip, .option-editor, .asset-row, .builder-controls, .profile-settings, .template-row, .rule-grid, .fee-grid { grid-template-columns: 1fr; }
+  .kpi-grid, .form-grid, .form-grid.compact, .risk-strip, .option-editor, .asset-row, .builder-controls, .profile-settings, .template-row, .rule-grid, .fee-grid, .template-manager { grid-template-columns: 1fr; }
   .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .email-status { display: grid; }
   .chart-wrap { height: 260px; }
+  .chart-subsection .chart-wrap { height: 220px; }
+  .panel-toolbar { display: grid; }
+  .panel-toolbar select { width: 100%; }
   .profile-upload { justify-items: stretch; }
   .profile-upload .profile-photo { justify-self: center; }
   .profile-preview-line { display: grid; }
