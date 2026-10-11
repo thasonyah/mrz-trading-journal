@@ -157,6 +157,17 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS portfolio_templates (
+  id SERIAL PRIMARY KEY,
+  template_key TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  values_json TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_trades_user_account_date ON trades(user_id, account_id, trade_date);
 CREATE INDEX IF NOT EXISTS idx_trades_setup ON trades(setup_grade, htf_bias, mtf_structure, ltf_entry);
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_type ON auth_tokens(user_id, type, used_at, expires_at);
