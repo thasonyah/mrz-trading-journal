@@ -207,104 +207,54 @@ const blankAccount = {
   commissionNotes: ''
 };
 
-const portfolioTemplates = [
+const fallbackPortfolioTemplates = [
+  { id: 'custom', templateKey: 'custom', label: 'Custom / Manual', values: blankAccount },
   {
-    id: 'custom',
-    label: 'Custom / Manual',
-    values: blankAccount
-  },
-  {
-    id: 'apex-50k',
-    label: 'Apex 50K Futures',
-    values: {
-      ...blankAccount,
-      name: 'Apex 50K',
-      provider: 'Apex',
-      planName: '50K Evaluation',
-      marketType: 'Futures',
-      startingBalance: 50000,
-      profitTarget: 3000,
-      maxDrawdown: 2500,
-      trailingDrawdown: 2500,
-      maxContracts: 10,
-      minTradingDays: 7,
-      consistencyRule: 'Edit to match the current Apex rule for this plan.',
-      payoutRule: 'Edit to match the current payout rule before trading live.',
-      commissionType: 'perContract',
-      commissionAmount: 2.8,
-      commissionScope: 'roundTrip',
+    id: 'apex-50k', templateKey: 'apex-50k', label: 'Apex 50K Futures', values: {
+      ...blankAccount, name: 'Apex 50K', provider: 'Apex', planName: '50K Evaluation', marketType: 'Futures', startingBalance: 50000,
+      profitTarget: 3000, maxDrawdown: 2500, trailingDrawdown: 2500, maxContracts: 10, minTradingDays: 7,
+      consistencyRule: 'Edit to match the current Apex rule for this plan.', payoutRule: 'Edit to match the current payout rule before trading live.',
+      commissionType: 'perContract', commissionAmount: 2.8, commissionScope: 'roundTrip',
       commissionNotes: 'Estimated round-trip futures commission per contract. Adjust to your broker statement.'
     }
   },
   {
-    id: 'topstep-50k',
-    label: 'TopStep 50K Futures',
-    values: {
-      ...blankAccount,
-      name: 'TopStep 50K',
-      provider: 'TopStep',
-      planName: '50K Trading Combine',
-      marketType: 'Futures',
-      startingBalance: 50000,
-      profitTarget: 3000,
-      maxDrawdown: 2000,
-      dailyLossLimit: 1000,
-      maxContracts: 5,
-      minTradingDays: 2,
-      consistencyRule: 'Edit to match current TopStep rules.',
-      payoutRule: 'Edit to match current TopStep payout rules.',
-      commissionType: 'perContract',
-      commissionAmount: 2.8,
-      commissionScope: 'roundTrip',
-      commissionNotes: 'Estimated round-trip futures commission per contract.'
+    id: 'topstep-50k', templateKey: 'topstep-50k', label: 'TopStep 50K Futures', values: {
+      ...blankAccount, name: 'TopStep 50K', provider: 'TopStep', planName: '50K Trading Combine', marketType: 'Futures', startingBalance: 50000,
+      profitTarget: 3000, dailyLossLimit: 1000, maxDrawdown: 2000, maxContracts: 5, minTradingDays: 2,
+      consistencyRule: 'Edit to match current TopStep rules.', payoutRule: 'Edit to match current TopStep payout rules.',
+      commissionType: 'perContract', commissionAmount: 2.8, commissionScope: 'roundTrip', commissionNotes: 'Estimated round-trip futures commission per contract.'
     }
   },
   {
-    id: 'ftmo-100k',
-    label: 'FTMO 100K Forex/CFD',
-    values: {
-      ...blankAccount,
-      name: 'FTMO 100K',
-      provider: 'FTMO',
-      planName: '100K Challenge',
-      marketType: 'Forex / CFD',
-      startingBalance: 100000,
-      profitTarget: 10000,
-      dailyLossLimit: 5000,
-      maxDrawdown: 10000,
-      maxContracts: '',
-      minTradingDays: 4,
-      consistencyRule: 'Edit to match the instrument and account type.',
-      payoutRule: 'Edit to match current FTMO payout rules.',
-      commissionType: 'fixed',
-      commissionAmount: 0,
-      commissionScope: 'roundTrip',
-      commissionNotes: 'Set fixed commission manually if your symbol has a fee.'
+    id: 'ftmo-100k', templateKey: 'ftmo-100k', label: 'FTMO 100K Forex/CFD', values: {
+      ...blankAccount, name: 'FTMO 100K', provider: 'FTMO', planName: '100K Challenge', marketType: 'Forex / CFD', startingBalance: 100000,
+      profitTarget: 10000, dailyLossLimit: 5000, maxDrawdown: 10000, minTradingDays: 4,
+      consistencyRule: 'Edit to match the instrument and account type.', payoutRule: 'Edit to match current FTMO payout rules.',
+      commissionType: 'fixed', commissionAmount: 0, commissionScope: 'roundTrip', commissionNotes: 'Set fixed commission manually if your symbol has a fee.'
     }
   },
   {
-    id: 'mff-100k',
-    label: 'MFF / Prop 100K',
-    values: {
-      ...blankAccount,
-      name: 'Prop 100K',
-      provider: 'MFF / Prop Firm',
-      planName: '100K Evaluation',
-      marketType: 'Forex / CFD',
-      startingBalance: 100000,
-      profitTarget: 8000,
-      dailyLossLimit: 5000,
-      maxDrawdown: 12000,
-      minTradingDays: 5,
-      consistencyRule: 'Use as a starter template; verify all rules with the active plan.',
-      payoutRule: 'Edit payout split, minimum days, and withdrawal cycle.',
-      commissionType: 'fixed',
-      commissionAmount: 0,
-      commissionScope: 'roundTrip',
-      commissionNotes: 'Manual starter preset for prop-firm style accounts.'
+    id: 'mff-100k', templateKey: 'mff-100k', label: 'MFF / Prop 100K', values: {
+      ...blankAccount, name: 'Prop 100K', provider: 'MFF / Prop Firm', planName: '100K Evaluation', marketType: 'Forex / CFD', startingBalance: 100000,
+      profitTarget: 8000, dailyLossLimit: 5000, maxDrawdown: 12000, minTradingDays: 5,
+      consistencyRule: 'Use as a starter template; verify all rules with the active plan.', payoutRule: 'Edit payout split, minimum days, and withdrawal cycle.',
+      commissionType: 'fixed', commissionAmount: 0, commissionScope: 'roundTrip', commissionNotes: 'Manual starter preset for prop-firm style accounts.'
     }
   }
 ];
+
+function templateDraftFrom(template = {}) {
+  const values = { ...blankAccount, ...(template.values || {}) };
+  return {
+    id: template.id || null,
+    templateKey: template.templateKey || `custom-${Date.now()}`,
+    label: template.label || 'New template',
+    sortOrder: template.sortOrder || 99,
+    isActive: template.isActive !== false,
+    values
+  };
+}
 
 const commissionTypeLabels = {
   none: 'No commission',
@@ -702,6 +652,7 @@ function App() {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState(null);
   const [portfolioLimit, setPortfolioLimit] = useState(5);
+  const [portfolioTemplates, setPortfolioTemplates] = useState(fallbackPortfolioTemplates);
   const [trades, setTrades] = useState([]);
   const [options, setOptions] = useState(defaultOptions);
   const [assets, setAssets] = useState(defaultAssets);
@@ -712,10 +663,11 @@ function App() {
   const scopedApi = useMemo(() => (path, options = {}) => api(withUser(path, scopedUserId), options), [api, scopedUserId]);
 
   async function loadAll(nextAccountId = accountId) {
-    const [a, o, assetData] = await Promise.all([scopedApi('/accounts'), scopedApi('/options'), scopedApi('/assets')]);
+    const [a, o, assetData, templateData] = await Promise.all([scopedApi('/accounts'), scopedApi('/options'), scopedApi('/assets'), api('/portfolio-templates')]);
     setAccounts(a.accounts);
     setPortfolioLimit(a.portfolioLimit || 5);
     setAssets(assetData.assets?.length ? assetData.assets : defaultAssets);
+    setPortfolioTemplates(templateData.templates?.length ? templateData.templates : fallbackPortfolioTemplates);
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
     setOptions({ ...defaultOptions, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options])) });
@@ -771,8 +723,8 @@ function App() {
       {page === 'calendar' && <CalendarPage trades={trades} account={account} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
       {page === 'journal' && <JournalPage api={scopedApi} accountId={accountId} />}
-      {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
-      {page === 'coach' && <CoachPage api={api} token={session?.token} currentUser={currentUser} viewUserId={viewUserId} setViewUserId={(id) => { setViewUserId(id); setPage('dashboard'); }} />}
+      {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} portfolioTemplates={portfolioTemplates} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
+      {page === 'coach' && <CoachPage api={api} token={session?.token} currentUser={currentUser} viewUserId={viewUserId} setViewUserId={(id) => { setViewUserId(id); setPage('dashboard'); }} portfolioTemplates={portfolioTemplates} setPortfolioTemplates={setPortfolioTemplates} setToast={setToast} />}
     </main>
     {toast && <div className="toast">{toast}</div>}
   </div>;
@@ -1229,7 +1181,7 @@ function JournalPage({ api, accountId }) {
   return <section><Header title="Playbook" hint={saved ? `Saved ${saved}` : 'Account logic, rules, and review notes'} action={<button className="primary" onClick={save}><Save size={16} />Save note</button>} /><textarea className="playbook" value={content} onChange={(e) => setContent(e.target.value)} /></section>;
 }
 
-function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, user, setCurrentUser, reload, setToast }) {
+function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, portfolioTemplates, user, setCurrentUser, reload, setToast }) {
   const [accountDraft, setAccountDraft] = useState(accountDraftFrom(account));
   const [templateId, setTemplateId] = useState('custom');
   const [optionDrafts, setOptionDrafts] = useState({});
@@ -1246,7 +1198,7 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     setAccountDraft((draft) => ({ ...draft, [key]: value }));
   }
   function applyTemplate() {
-    const selected = portfolioTemplates.find((template) => template.id === templateId);
+    const selected = portfolioTemplates.find((template) => String(template.id || template.templateKey) === templateId);
     if (!selected) return;
     setAccountDraft((draft) => ({ ...draft, ...selected.values }));
     setToast('Portfolio template applied');
@@ -1354,14 +1306,14 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
         <div className="actions"><button className="primary" onClick={saveProfile}><Save size={16} />Save profile</button></div>
       </div>
     </div></Panel>
-    <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="template-row"><Field label="Auto preset"><select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>{portfolioTemplates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}</select></Field><button onClick={applyTemplate}><SlidersHorizontal size={15} />Apply</button></div><div className="form-grid"><Field label="Name"><input value={accountDraft.name || ''} onChange={(e) => setAccountField('name', e.target.value)} /></Field><Field label="Provider"><input value={accountDraft.provider || ''} onChange={(e) => setAccountField('provider', e.target.value)} placeholder="Apex, MFF, TopStep, FTMO..." /></Field><Field label="Plan"><input value={accountDraft.planName || ''} onChange={(e) => setAccountField('planName', e.target.value)} placeholder="50K Evaluation" /></Field><Field label="Market"><input value={accountDraft.marketType || ''} onChange={(e) => setAccountField('marketType', e.target.value)} placeholder="Futures / Forex" /></Field><Field label="Type"><select value={accountDraft.type || 'live'} onChange={(e) => setAccountField('type', e.target.value)}><option value="backtest">backtest</option><option value="forward">forward</option><option value="live">live</option><option value="funded">funded</option></select></Field><Field label="Starting Balance"><input type="number" value={accountDraft.startingBalance || ''} onChange={(e) => setAccountField('startingBalance', e.target.value)} /></Field></div><div className="rule-grid"><Field label="Profit Target"><input type="number" value={accountDraft.profitTarget || ''} onChange={(e) => setAccountField('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={accountDraft.dailyLossLimit || ''} onChange={(e) => setAccountField('dailyLossLimit', e.target.value)} /></Field><Field label="Max Drawdown"><input type="number" value={accountDraft.maxDrawdown || ''} onChange={(e) => setAccountField('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={accountDraft.trailingDrawdown || ''} onChange={(e) => setAccountField('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={accountDraft.maxContracts || ''} onChange={(e) => setAccountField('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={accountDraft.minTradingDays || ''} onChange={(e) => setAccountField('minTradingDays', e.target.value)} /></Field></div><div className="form-grid compact"><Field label="Consistency Rule"><textarea value={accountDraft.consistencyRule || ''} onChange={(e) => setAccountField('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={accountDraft.payoutRule || ''} onChange={(e) => setAccountField('payoutRule', e.target.value)} /></Field></div><div className="fee-grid"><Field label="Commission type"><select value={accountDraft.commissionType || 'none'} onChange={(e) => setAccountField('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Amount"><input type="number" step="any" value={accountDraft.commissionAmount ?? ''} onChange={(e) => setAccountField('commissionAmount', e.target.value)} /></Field><Field label="Scope"><select value={accountDraft.commissionScope || 'roundTrip'} onChange={(e) => setAccountField('commissionScope', e.target.value)}><option value="roundTrip">Round trip</option><option value="entry">Entry only</option><option value="exit">Exit only</option></select></Field></div><Field label="Commission note"><input value={accountDraft.commissionNotes || ''} onChange={(e) => setAccountField('commissionNotes', e.target.value)} placeholder="Keep this synced with your broker statement" /></Field><div className="portfolio-summary"><span>{accountDraft.provider || 'Custom'} / {accountDraft.planName || 'Manual plan'}</span><b>{money(accountDraft.startingBalance || 0)}</b><small>{commissionTypeLabels[accountDraft.commissionType || 'none']} {accountDraft.commissionAmount ? `• ${accountDraft.commissionAmount}` : ''}</small></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
+    <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="template-row"><Field label="Auto preset"><select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>{portfolioTemplates.map((template) => <option key={template.id || template.templateKey} value={String(template.id || template.templateKey)}>{template.label}</option>)}</select></Field><button onClick={applyTemplate}><SlidersHorizontal size={15} />Apply</button></div><div className="form-grid"><Field label="Name"><input value={accountDraft.name || ''} onChange={(e) => setAccountField('name', e.target.value)} /></Field><Field label="Provider"><input value={accountDraft.provider || ''} onChange={(e) => setAccountField('provider', e.target.value)} placeholder="Apex, MFF, TopStep, FTMO..." /></Field><Field label="Plan"><input value={accountDraft.planName || ''} onChange={(e) => setAccountField('planName', e.target.value)} placeholder="50K Evaluation" /></Field><Field label="Market"><input value={accountDraft.marketType || ''} onChange={(e) => setAccountField('marketType', e.target.value)} placeholder="Futures / Forex" /></Field><Field label="Type"><select value={accountDraft.type || 'live'} onChange={(e) => setAccountField('type', e.target.value)}><option value="backtest">backtest</option><option value="forward">forward</option><option value="live">live</option><option value="funded">funded</option></select></Field><Field label="Starting Balance"><input type="number" value={accountDraft.startingBalance || ''} onChange={(e) => setAccountField('startingBalance', e.target.value)} /></Field></div><div className="rule-grid"><Field label="Profit Target"><input type="number" value={accountDraft.profitTarget || ''} onChange={(e) => setAccountField('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={accountDraft.dailyLossLimit || ''} onChange={(e) => setAccountField('dailyLossLimit', e.target.value)} /></Field><Field label="Max Drawdown"><input type="number" value={accountDraft.maxDrawdown || ''} onChange={(e) => setAccountField('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={accountDraft.trailingDrawdown || ''} onChange={(e) => setAccountField('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={accountDraft.maxContracts || ''} onChange={(e) => setAccountField('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={accountDraft.minTradingDays || ''} onChange={(e) => setAccountField('minTradingDays', e.target.value)} /></Field></div><div className="form-grid compact"><Field label="Consistency Rule"><textarea value={accountDraft.consistencyRule || ''} onChange={(e) => setAccountField('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={accountDraft.payoutRule || ''} onChange={(e) => setAccountField('payoutRule', e.target.value)} /></Field></div><div className="fee-grid"><Field label="Commission type"><select value={accountDraft.commissionType || 'none'} onChange={(e) => setAccountField('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Amount"><input type="number" step="any" value={accountDraft.commissionAmount ?? ''} onChange={(e) => setAccountField('commissionAmount', e.target.value)} /></Field><Field label="Scope"><select value={accountDraft.commissionScope || 'roundTrip'} onChange={(e) => setAccountField('commissionScope', e.target.value)}><option value="roundTrip">Round trip</option><option value="entry">Entry only</option><option value="exit">Exit only</option></select></Field></div><Field label="Commission note"><input value={accountDraft.commissionNotes || ''} onChange={(e) => setAccountField('commissionNotes', e.target.value)} placeholder="Keep this synced with your broker statement" /></Field><div className="portfolio-summary"><span>{accountDraft.provider || 'Custom'} / {accountDraft.planName || 'Manual plan'}</span><b>{money(accountDraft.startingBalance || 0)}</b><small>{commissionTypeLabels[accountDraft.commissionType || 'none']} {accountDraft.commissionAmount ? `• ${accountDraft.commissionAmount}` : ''}</small></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
     <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
     <Panel title="Account note"><div className="empty compact-empty">Use Security to update your own password. Admins can manage roles, status, and portfolio limits from the Admin page.</div></Panel></div>
     <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)} disabled={savingOption === key}><Save size={14} />{savingOption === key ? 'Saving...' : `Save ${key}`}</button></div>)}</div></Panel></section>;
 }
 
-function CoachPage({ api, token, currentUser, viewUserId, setViewUserId }) {
+function CoachPage({ api, token, currentUser, viewUserId, setViewUserId, portfolioTemplates, setPortfolioTemplates, setToast }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(null);
@@ -1378,6 +1330,10 @@ function CoachPage({ api, token, currentUser, viewUserId, setViewUserId }) {
         currentUser?.role === 'admin' ? api('/admin/system/status') : Promise.resolve(null)
       ]);
       setRows(team.users);
+      if (currentUser?.role === 'admin') {
+        const templateData = await api('/admin/portfolio-templates');
+        setPortfolioTemplates(templateData.templates?.length ? templateData.templates : fallbackPortfolioTemplates);
+      }
       setEmailStatus(email?.email || null);
       setSystemStatus(system?.system || null);
       setDirty(new Set());
@@ -1456,7 +1412,55 @@ function CoachPage({ api, token, currentUser, viewUserId, setViewUserId }) {
     {currentUser?.role === 'admin' && <Panel title="System status"><div className="status-grid"><div><span>Database</span><b className={systemStatus?.database === 'Postgres' ? 'pos' : 'neg'}>{systemStatus?.database || '-'}</b></div><div><span>Demo account</span><b className={systemStatus?.demoLocked ? 'pos' : 'neg'}>{systemStatus?.demoLocked ? 'Locked' : 'Open'}</b></div><div><span>Email</span><b className={systemStatus?.email?.configured ? 'pos' : 'neg'}>{systemStatus?.email?.configured ? 'Ready' : 'Needs SMTP'}</b></div><div><span>Export</span><b className={systemStatus?.exportReady ? 'pos' : 'neg'}>{systemStatus?.exportReady ? 'Ready' : 'Check'}</b></div><div><span>Users</span><b>{systemStatus?.counts?.users ?? '-'}</b></div><div><span>Trades</span><b>{systemStatus?.counts?.trades ?? '-'}</b></div></div></Panel>}
     {currentUser?.role === 'admin' && <Panel title="Email delivery"><div className="email-status"><div><b className={emailStatus?.configured ? 'pos' : 'neg'}>{emailStatus?.configured ? 'SMTP configured' : 'SMTP not configured'}</b><p>{emailStatus?.configured ? `${emailStatus.host}:${emailStatus.port} • From ${emailStatus.from || '-'}` : 'Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and MAIL_FROM in Render Environment.'}</p>{emailTest && <small>{emailTest}</small>}</div><button onClick={testEmail} disabled={!emailStatus?.configured || !currentUser?.email}><Mail size={16} />Send test email</button></div></Panel>}
     {currentUser?.role === 'admin' && <Panel title="Backup & export"><div className="email-status"><div><b>Download data backup</b><p>Export a full JSON backup or trades-only CSV for spreadsheet analysis.</p></div><div className="admin-actions"><button onClick={exportBackup}><Download size={16} />JSON backup</button><button onClick={exportTrades}><Download size={16} />Trades CSV</button></div></div></Panel>}
+    {currentUser?.role === 'admin' && <TemplateManager templates={portfolioTemplates} setTemplates={setPortfolioTemplates} api={api} setToast={setToast} />}
     <div className="table-wrap"><table><thead><tr><th>User</th><th>Actions</th><th>Email</th><th>Role</th><th>Status</th><th>Verified</th><th>Portfolios</th><th>Trades</th><th>Net P&L</th></tr></thead><tbody>{rows.map((r) => <tr key={r.id} className={viewUserId === r.id ? 'selected' : ''}><td><b>{r.username}</b>{dirty.has(r.id) && <small>Unsaved</small>}</td><td className="row-actions admin-row-actions"><button onClick={() => setViewUserId(r.id)}><UserRound size={14} />Open</button>{currentUser?.role === 'admin' && <button className={dirty.has(r.id) ? 'primary' : ''} onClick={() => save(r)} disabled={saving === r.id || !dirty.has(r.id)}><Save size={14} />Save</button>}</td><td>{r.email || '-'}</td><td><select value={r.role} onChange={(e) => updateRow(r.id, 'role', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="trader">trader</option><option value="coach">coach</option><option value="admin">admin</option></select></td><td><select value={r.status || 'active'} onChange={(e) => updateRow(r.id, 'status', e.target.value)} disabled={currentUser?.role !== 'admin'}><option value="active">active</option><option value="suspended">suspended</option></select></td><td><label className="table-check"><input type="checkbox" checked={!!r.emailVerified} onChange={(e) => updateRow(r.id, 'emailVerified', e.target.checked)} disabled={currentUser?.role !== 'admin'} />Yes</label></td><td><input className="tiny-input" type="number" min="1" max="5" value={r.portfolioLimit || 5} onChange={(e) => updateRow(r.id, 'portfolioLimit', e.target.value)} disabled={currentUser?.role !== 'admin'} /> <small>{r.portfolios || 0} used</small></td><td>{r.totalTrades}</td><td className={r.netPnl >= 0 ? 'pos' : 'neg'}>{money(r.netPnl)}</td></tr>)}</tbody></table></div></section>;
+}
+
+function TemplateManager({ templates, setTemplates, api, setToast }) {
+  const [draft, setDraft] = useState(templateDraftFrom(templates[0] || fallbackPortfolioTemplates[0]));
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!draft.id && templates[0]) setDraft(templateDraftFrom(templates[0]));
+  }, [templates]);
+  const updateValue = (key, value) => setDraft((current) => ({ ...current, values: { ...current.values, [key]: value } }));
+  async function saveTemplate() {
+    setSaving(true);
+    try {
+      const payload = { templateKey: draft.templateKey, label: draft.label, sortOrder: draft.sortOrder, isActive: draft.isActive, values: draft.values };
+      const result = draft.id
+        ? await api(`/admin/portfolio-templates/${draft.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+        : await api('/admin/portfolio-templates', { method: 'POST', body: JSON.stringify(payload) });
+      const next = draft.id ? templates.map((item) => item.id === draft.id ? result.template : item) : [...templates, result.template];
+      setTemplates(next.sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99)));
+      setDraft(templateDraftFrom(result.template));
+      setToast('Portfolio template saved');
+    } catch (error) {
+      setToast(error.message || 'Could not save template');
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function deleteTemplate() {
+    if (!draft.id || !confirm('Delete this template? Existing portfolios will not be changed.')) return;
+    await api(`/admin/portfolio-templates/${draft.id}`, { method: 'DELETE' });
+    const next = templates.filter((item) => item.id !== draft.id);
+    setTemplates(next);
+    setDraft(templateDraftFrom(next[0] || fallbackPortfolioTemplates[0]));
+    setToast('Portfolio template deleted');
+  }
+  return <Panel title="Portfolio template library"><div className="template-manager">
+    <div className="template-list">
+      <button onClick={() => setDraft(templateDraftFrom({ label: 'New template', values: blankAccount, sortOrder: templates.length + 1 }))}><Plus size={15} />New template</button>
+      {templates.map((template) => <button key={template.id || template.templateKey} className={draft.id === template.id ? 'selected' : ''} onClick={() => setDraft(templateDraftFrom(template))}><b>{template.label}</b><span>{template.values?.provider || 'Custom'} / {template.values?.planName || 'Manual'}</span></button>)}
+    </div>
+    <div className="template-form">
+      <div className="form-grid"><Field label="Template name"><input value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></Field><Field label="Template key"><input value={draft.templateKey} onChange={(e) => setDraft({ ...draft, templateKey: e.target.value })} /></Field><Field label="Sort"><input type="number" value={draft.sortOrder} onChange={(e) => setDraft({ ...draft, sortOrder: e.target.value })} /></Field></div>
+      <div className="form-grid"><Field label="Provider"><input value={draft.values.provider || ''} onChange={(e) => updateValue('provider', e.target.value)} /></Field><Field label="Plan"><input value={draft.values.planName || ''} onChange={(e) => updateValue('planName', e.target.value)} /></Field><Field label="Market"><input value={draft.values.marketType || ''} onChange={(e) => updateValue('marketType', e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={draft.values.startingBalance || ''} onChange={(e) => updateValue('startingBalance', e.target.value)} /></Field><Field label="Profit Target"><input type="number" value={draft.values.profitTarget || ''} onChange={(e) => updateValue('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={draft.values.dailyLossLimit || ''} onChange={(e) => updateValue('dailyLossLimit', e.target.value)} /></Field></div>
+      <div className="rule-grid"><Field label="Max Drawdown"><input type="number" value={draft.values.maxDrawdown || ''} onChange={(e) => updateValue('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={draft.values.trailingDrawdown || ''} onChange={(e) => updateValue('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={draft.values.maxContracts || ''} onChange={(e) => updateValue('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={draft.values.minTradingDays || ''} onChange={(e) => updateValue('minTradingDays', e.target.value)} /></Field><Field label="Commission"><input type="number" step="any" value={draft.values.commissionAmount ?? ''} onChange={(e) => updateValue('commissionAmount', e.target.value)} /></Field><Field label="Commission type"><select value={draft.values.commissionType || 'none'} onChange={(e) => updateValue('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field></div>
+      <div className="form-grid compact"><Field label="Consistency Rule"><textarea value={draft.values.consistencyRule || ''} onChange={(e) => updateValue('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={draft.values.payoutRule || ''} onChange={(e) => updateValue('payoutRule', e.target.value)} /></Field></div>
+      <div className="template-actions"><label className="table-check"><input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} />Active</label><button className="primary" onClick={saveTemplate} disabled={saving}><Save size={15} />{saving ? 'Saving...' : 'Save template'}</button>{draft.id && <button onClick={deleteTemplate}><Trash2 size={15} />Delete</button>}</div>
+    </div>
+  </div></Panel>;
 }
 
 function Header({ title, hint, action }) { return <div className="page-head"><div><h1>{title}</h1><p>{hint}</p></div>{action}</div>; }
