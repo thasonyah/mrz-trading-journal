@@ -113,7 +113,7 @@ function shortDate(dateString) {
 }
 
 function weekLabel(weekStart) {
-  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 6))}`;
+  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 4))}`;
 }
 
 function chartOptions(kind = 'number') {
@@ -838,7 +838,7 @@ function Dashboard({ trades, stats, account, setPage }) {
   const activeWeek = selectedWeek || dashboardWeeks[dashboardWeeks.length - 1] || '';
   const weekDaily = useMemo(() => {
     if (!activeWeek) return [];
-    return Array.from({ length: 7 }, (_, index) => {
+    return Array.from({ length: 5 }, (_, index) => {
       const date = addDays(activeWeek, index);
       const rows = ledger.filter((trade) => trade.date === date);
       return {
