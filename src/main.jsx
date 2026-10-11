@@ -186,10 +186,141 @@ const defaultOptions = {
   emotion: ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']
 };
 
+const blankAccount = {
+  name: 'New Account',
+  type: 'live',
+  provider: 'Custom',
+  planName: '',
+  marketType: 'Futures',
+  startingBalance: 50000,
+  profitTarget: '',
+  dailyLossLimit: '',
+  maxDrawdown: '',
+  trailingDrawdown: '',
+  maxContracts: '',
+  minTradingDays: '',
+  consistencyRule: '',
+  payoutRule: '',
+  commissionType: 'none',
+  commissionAmount: '',
+  commissionScope: 'roundTrip',
+  commissionNotes: ''
+};
+
+const portfolioTemplates = [
+  {
+    id: 'custom',
+    label: 'Custom / Manual',
+    values: blankAccount
+  },
+  {
+    id: 'apex-50k',
+    label: 'Apex 50K Futures',
+    values: {
+      ...blankAccount,
+      name: 'Apex 50K',
+      provider: 'Apex',
+      planName: '50K Evaluation',
+      marketType: 'Futures',
+      startingBalance: 50000,
+      profitTarget: 3000,
+      maxDrawdown: 2500,
+      trailingDrawdown: 2500,
+      maxContracts: 10,
+      minTradingDays: 7,
+      consistencyRule: 'Edit to match the current Apex rule for this plan.',
+      payoutRule: 'Edit to match the current payout rule before trading live.',
+      commissionType: 'perContract',
+      commissionAmount: 2.8,
+      commissionScope: 'roundTrip',
+      commissionNotes: 'Estimated round-trip futures commission per contract. Adjust to your broker statement.'
+    }
+  },
+  {
+    id: 'topstep-50k',
+    label: 'TopStep 50K Futures',
+    values: {
+      ...blankAccount,
+      name: 'TopStep 50K',
+      provider: 'TopStep',
+      planName: '50K Trading Combine',
+      marketType: 'Futures',
+      startingBalance: 50000,
+      profitTarget: 3000,
+      maxDrawdown: 2000,
+      dailyLossLimit: 1000,
+      maxContracts: 5,
+      minTradingDays: 2,
+      consistencyRule: 'Edit to match current TopStep rules.',
+      payoutRule: 'Edit to match current TopStep payout rules.',
+      commissionType: 'perContract',
+      commissionAmount: 2.8,
+      commissionScope: 'roundTrip',
+      commissionNotes: 'Estimated round-trip futures commission per contract.'
+    }
+  },
+  {
+    id: 'ftmo-100k',
+    label: 'FTMO 100K Forex/CFD',
+    values: {
+      ...blankAccount,
+      name: 'FTMO 100K',
+      provider: 'FTMO',
+      planName: '100K Challenge',
+      marketType: 'Forex / CFD',
+      startingBalance: 100000,
+      profitTarget: 10000,
+      dailyLossLimit: 5000,
+      maxDrawdown: 10000,
+      maxContracts: '',
+      minTradingDays: 4,
+      consistencyRule: 'Edit to match the instrument and account type.',
+      payoutRule: 'Edit to match current FTMO payout rules.',
+      commissionType: 'fixed',
+      commissionAmount: 0,
+      commissionScope: 'roundTrip',
+      commissionNotes: 'Set fixed commission manually if your symbol has a fee.'
+    }
+  },
+  {
+    id: 'mff-100k',
+    label: 'MFF / Prop 100K',
+    values: {
+      ...blankAccount,
+      name: 'Prop 100K',
+      provider: 'MFF / Prop Firm',
+      planName: '100K Evaluation',
+      marketType: 'Forex / CFD',
+      startingBalance: 100000,
+      profitTarget: 8000,
+      dailyLossLimit: 5000,
+      maxDrawdown: 12000,
+      minTradingDays: 5,
+      consistencyRule: 'Use as a starter template; verify all rules with the active plan.',
+      payoutRule: 'Edit payout split, minimum days, and withdrawal cycle.',
+      commissionType: 'fixed',
+      commissionAmount: 0,
+      commissionScope: 'roundTrip',
+      commissionNotes: 'Manual starter preset for prop-firm style accounts.'
+    }
+  }
+];
+
+const commissionTypeLabels = {
+  none: 'No commission',
+  fixed: 'Fixed per trade',
+  perContract: 'Per contract',
+  percent: 'Percent of gross P&L'
+};
+
+function accountDraftFrom(account = {}) {
+  return { ...blankAccount, ...(account || {}), startingBalance: account?.startingBalance ?? blankAccount.startingBalance };
+}
+
 const blankTrade = {
   date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'BOSe', entryTime: '06:00', exitTime: '',
   durationTime: '', orderWaitMinutes: '', entryPrice: '', stopLoss: '', takeProfit: '', tpTicks: '', slTicks: '',
-  tickSize: 0.25, dollarPerPoint: 5, lotSize: '',
+  tickSize: 0.25, dollarPerPoint: 5, lotSize: '', commissionAmount: '',
   riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: true,
   fvgPosition: 'Middle of OB', liquiditySweep: true, bos: true, choch: false, mtfStructure: 'BOS',
   ltfEntry: 'OB + FVG', keyZone: 'Discount', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
@@ -259,7 +390,23 @@ function entryHourOf(trade) {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:00`;
 }
 
-function enrichTrade(input) {
+function startingBalanceOf(accountOrBalance = 50000) {
+  if (typeof accountOrBalance === 'object' && accountOrBalance !== null) return Number(accountOrBalance.startingBalance || 50000);
+  return Number(accountOrBalance || 50000);
+}
+
+function commissionForTrade(trade, grossPnl, account) {
+  const type = account?.commissionType || 'none';
+  if (trade.commissionAmount !== '' && trade.commissionAmount != null && (Number(trade.commissionAmount) > 0 || type === 'none')) return Number(trade.commissionAmount) || 0;
+  const amount = Number(account?.commissionAmount || 0);
+  if (!amount || type === 'none') return 0;
+  if (type === 'fixed') return amount;
+  if (type === 'perContract') return amount * (Number(trade.lotSize || trade.suggestedLot || 0) || 0);
+  if (type === 'percent') return Math.abs(Number(grossPnl || 0)) * (amount / 100);
+  return 0;
+}
+
+function enrichTrade(input, account = null) {
   const t = { ...input };
   const durationTime = t.entryTime && t.exitTime ? durationLabelFromTimes(t.entryTime, t.exitTime) : (t.durationTime || '');
   const entry = Number(t.entryPrice);
@@ -284,7 +431,9 @@ function enrichTrade(input) {
   const slAmount = Number.isFinite(slTicks) ? slTicks * dpp * lotSize : risk;
   const tpAmount = Number.isFinite(tpTicks) ? tpTicks * dpp * lotSize : risk * plannedR;
   const resultR = t.result === 'win' ? plannedR : t.result === 'loss' || t.result === 'reversed' ? -1 : 0;
-  const pnl = t.result === 'win' ? tpAmount : (t.result === 'loss' || t.result === 'reversed') ? -slAmount : 0;
+  const grossPnl = t.result === 'win' ? tpAmount : (t.result === 'loss' || t.result === 'reversed') ? -slAmount : 0;
+  const commissionAmount = commissionForTrade({ ...t, lotSize, suggestedLot }, grossPnl, account);
+  const netPnl = grossPnl - commissionAmount;
   return {
     ...t,
     entryPrice: entry || null,
@@ -298,7 +447,10 @@ function enrichTrade(input) {
     actualR: resultR,
     lotSize,
     suggestedLot,
-    pnl,
+    grossPnl,
+    commissionAmount,
+    netPnl,
+    pnl: netPnl,
     slAmount,
     tpAmount,
     tpPercent: 0,
@@ -314,7 +466,9 @@ function enrichTrade(input) {
   };
 }
 
-function computeLedger(trades, startingBalance = 50000) {
+function computeLedger(trades, accountOrBalance = 50000) {
+  const startingBalance = startingBalanceOf(accountOrBalance);
+  const account = typeof accountOrBalance === 'object' ? accountOrBalance : null;
   let balance = startingBalance;
   let conLoss = 0;
   let sumConLossAmount = 0;
@@ -322,13 +476,15 @@ function computeLedger(trades, startingBalance = 50000) {
   return [...trades]
     .sort((a, b) => `${a.date}${a.entryTime || ''}${a.id || 0}`.localeCompare(`${b.date}${b.entryTime || ''}${b.id || 0}`))
     .map((trade) => {
-      const t = enrichTrade(trade);
+      const t = enrichTrade(trade, account);
       const before = balance;
       const isLoss = t.result === 'loss' || t.result === 'reversed';
       const isWin = t.result === 'win';
       const slAmount = Number(t.slAmount || 0);
       const tpAmount = Number(t.tpAmount || 0);
-      const pnl = isWin ? tpAmount : isLoss ? -slAmount : 0;
+      const grossPnl = isWin ? tpAmount : isLoss ? -slAmount : 0;
+      const commissionAmount = Number(t.commissionAmount || 0);
+      const pnl = Number(t.netPnl ?? t.pnl ?? (grossPnl - commissionAmount));
       if (isWin) {
         conLoss = 0;
         sumConLossAmount = 0;
@@ -342,6 +498,9 @@ function computeLedger(trades, startingBalance = 50000) {
       return {
         ...trade,
         ...t,
+        grossPnl,
+        commissionAmount,
+        netPnl: pnl,
         pnl,
         slAmount,
         tpAmount,
@@ -367,12 +526,15 @@ function getWeekNumber(dateString) {
   return Math.ceil((((date - start) / 86400000) + start.getDay() + 1) / 7);
 }
 
-function computeStats(trades, startingBalance = 50000) {
-  const rows = computeLedger(trades, startingBalance);
+function computeStats(trades, accountOrBalance = 50000) {
+  const startingBalance = startingBalanceOf(accountOrBalance);
+  const rows = computeLedger(trades, accountOrBalance);
   const wins = rows.filter((t) => t.result === 'win');
   const losses = rows.filter((t) => t.result === 'loss' || t.result === 'reversed');
   const decided = wins.length + losses.length;
   const net = rows.reduce((s, t) => s + Number(t.pnl || 0), 0);
+  const gross = rows.reduce((s, t) => s + Number(t.grossPnl ?? t.pnl ?? 0), 0);
+  const totalCommission = rows.reduce((s, t) => s + Number(t.commissionAmount || 0), 0);
   const grossProfit = rows.reduce((s, t) => t.pnl > 0 ? s + t.pnl : s, 0);
   const grossLoss = Math.abs(rows.reduce((s, t) => t.pnl < 0 ? s + t.pnl : s, 0));
   const winRate = decided ? wins.length / decided : 0;
@@ -401,6 +563,8 @@ function computeStats(trades, startingBalance = 50000) {
     losses: losses.length,
     miss: rows.filter((t) => t.result === 'miss').length,
     net,
+    gross,
+    totalCommission,
     winRate,
     profitFactor: grossLoss ? grossProfit / grossLoss : grossProfit ? Infinity : 0,
     expectancy,
@@ -424,9 +588,11 @@ function groupBy(trades, key) {
   const map = new Map();
   trades.forEach((t) => {
     const value = key === 'day' ? new Date(`${t.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' }) : (t[key] || 'Unspecified');
-    const current = map.get(value) || { name: value, wins: 0, losses: 0, pnl: 0, trades: 0, rrSum: 0, rrCount: 0, tickSum: 0, tickCount: 0, durationSum: 0, durationCount: 0 };
+    const current = map.get(value) || { name: value, wins: 0, losses: 0, pnl: 0, grossPnl: 0, commissionAmount: 0, trades: 0, rrSum: 0, rrCount: 0, tickSum: 0, tickCount: 0, durationSum: 0, durationCount: 0 };
     current.trades += 1;
     current.pnl += Number(t.pnl || 0);
+    current.grossPnl += Number(t.grossPnl ?? t.pnl ?? 0);
+    current.commissionAmount += Number(t.commissionAmount || 0);
     if (t.result === 'win') current.wins += 1;
     if (t.result === 'loss' || t.result === 'reversed') current.losses += 1;
     const rr = Number(t.actualR || t.plannedR || 0);
@@ -567,7 +733,7 @@ function App() {
 
   if (!session?.token) return <AuthScreen setSession={setSession} />;
   const account = accounts.find((a) => a.id === Number(accountId)) || accounts[0];
-  const stats = computeStats(trades, account?.startingBalance || 50000);
+  const stats = computeStats(trades, account || 50000);
   const nav = [
     ['dashboard', LayoutDashboard, 'Dashboard'],
     ['log', Plus, editing ? 'Edit Trade' : 'Add Trade'],
@@ -600,9 +766,9 @@ function App() {
     </aside>
     <main className="workspace">
       {page === 'dashboard' && <Dashboard trades={trades} stats={stats} account={account} setPage={setPage} />}
-      {page === 'log' && <TradeForm api={scopedApi} accountId={accountId} options={options} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
+      {page === 'log' && <TradeForm api={scopedApi} accountId={accountId} account={account} options={options} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
       {page === 'history' && <HistoryPage api={scopedApi} accountId={accountId} account={account} trades={trades} setTrades={setTrades} setEditing={(t) => { setEditing(t); setPage('log'); }} setToast={setToast} />}
-      {page === 'calendar' && <CalendarPage trades={trades} />}
+      {page === 'calendar' && <CalendarPage trades={trades} account={account} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
       {page === 'journal' && <JournalPage api={scopedApi} accountId={accountId} />}
       {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
@@ -626,7 +792,7 @@ function ProfileCard({ user }) {
 }
 
 function Dashboard({ trades, stats, account, setPage }) {
-  const ledger = useMemo(() => computeLedger(trades, account?.startingBalance || 50000), [trades, account?.startingBalance]);
+  const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
   const daily = useMemo(() => {
     const map = new Map();
     ledger.sort((a, b) => a.date.localeCompare(b.date)).forEach((t) => map.set(t.date, (map.get(t.date) || 0) + Number(t.pnl || 0)));
@@ -635,7 +801,7 @@ function Dashboard({ trades, stats, account, setPage }) {
   }, [ledger]);
   const hourRows = useMemo(() => groupBy(ledger, 'entryHour').sort((a, b) => String(a.name).localeCompare(String(b.name))), [ledger]);
   const ltfRows = useMemo(() => groupBy(ledger, 'ltfEntry').sort((a, b) => b.trades - a.trades), [ledger]);
-  const setupRows = useMemo(() => groupBy(trades, 'setupGrade'), [trades]);
+  const setupRows = useMemo(() => groupBy(ledger, 'setupGrade'), [ledger]);
   const equityChart = {
     labels: daily.map((row) => row.date),
     datasets: [{
@@ -692,6 +858,8 @@ function Dashboard({ trades, stats, account, setPage }) {
   return <section>
     <Header title="Dashboard" hint={`${account?.name || 'Account'} performance overview`} action={<button className="primary" onClick={() => setPage('log')}><Plus size={16} />Log trade</button>} />
     <div className="kpi-grid">
+      <Kpi label="Gross P&L" value={money(stats.gross)} tone={stats.gross >= 0 ? 'good' : 'bad'} />
+      <Kpi label="Commission" value={money(stats.totalCommission)} />
       <Kpi label="Net P&L" value={money(stats.net)} tone={stats.net >= 0 ? 'good' : 'bad'} />
       <Kpi label="Win Rate" value={pct(stats.winRate * 100)} />
       <Kpi label="Profit Factor" value={stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)} />
@@ -722,10 +890,10 @@ function Dashboard({ trades, stats, account, setPage }) {
   </section>;
 }
 
-function TradeForm({ api, accountId, options, assets, editing, setEditing, reload, setToast }) {
+function TradeForm({ api, accountId, account, options, assets, editing, setEditing, reload, setToast }) {
   const [form, setForm] = useState(editing || blankTrade);
   useEffect(() => setForm(editing || blankTrade), [editing]);
-  const calc = enrichTrade(form);
+  const calc = enrichTrade(form, account);
   function set(key, value) {
     let next = { ...form, [key]: value };
     if (key === 'asset') {
@@ -733,7 +901,7 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
       if (preset) next = { ...next, tickSize: preset.tickSize, dollarPerPoint: preset.dollarPerPoint };
     }
     if ((key === 'entryPrice' || key === 'direction' || key === 'tpTicks' || key === 'slTicks' || key === 'tickSize') && next.entryPrice) {
-      const preview = enrichTrade(next);
+      const preview = enrichTrade(next, account);
       next = { ...next, stopLoss: preview.stopLoss || '', takeProfit: preview.takeProfit || '' };
     }
     if (key === 'entryTime' || key === 'exitTime') {
@@ -743,7 +911,7 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
   }
   async function save(e) {
     e.preventDefault();
-    const payload = enrichTrade(form);
+    const payload = enrichTrade(form, account);
     if (editing) await api(`/accounts/${accountId}/trades/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) });
     else await api(`/accounts/${accountId}/trades`, { method: 'POST', body: JSON.stringify(payload) });
     setEditing(null);
@@ -766,11 +934,14 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
           <Field label="Stop"><input type="number" step="any" value={form.stopLoss} onChange={(e) => set('stopLoss', e.target.value)} /></Field>
           <Field label="Target"><input type="number" step="any" value={form.takeProfit} onChange={(e) => set('takeProfit', e.target.value)} /></Field>
           <Field label="$ / point"><input type="number" step="any" value={form.dollarPerPoint} onChange={(e) => set('dollarPerPoint', e.target.value)} /></Field>
+          <Field label="Commission"><input type="number" step="any" value={form.commissionAmount ?? ''} onChange={(e) => set('commissionAmount', e.target.value)} placeholder={account?.commissionType && account.commissionType !== 'none' ? 'Auto from portfolio' : '0'} /></Field>
         </div>
         <div className="risk-strip">
           <Kpi label="Planned RR" value={fmtR(calc.plannedR)} />
           <Kpi label="Suggested lot" value={Number(calc.suggestedLot || 0).toFixed(2)} />
-          <Kpi label="Projected P&L" value={money(calc.pnl)} tone={calc.pnl >= 0 ? 'good' : 'bad'} />
+          <Kpi label="Gross P&L" value={money(calc.grossPnl)} tone={calc.grossPnl >= 0 ? 'good' : 'bad'} />
+          <Kpi label="Commission" value={money(calc.commissionAmount)} />
+          <Kpi label="Net P&L" value={money(calc.netPnl)} tone={calc.netPnl >= 0 ? 'good' : 'bad'} />
           <Kpi label="SL$ / TP$" value={`${money(calc.slAmount)} / ${money(calc.tpAmount)}`} />
         </div>
       </Panel>
@@ -828,7 +999,7 @@ function TradeForm({ api, accountId, options, assets, editing, setEditing, reloa
 function HistoryPage({ api, accountId, account, trades, setTrades, setEditing, setToast }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
-  const ledger = computeLedger(trades, account?.startingBalance || 50000);
+  const ledger = computeLedger(trades, account || 50000);
   const list = ledger.filter((t) => (filter === 'all' || t.result === filter) && JSON.stringify(t).toLowerCase().includes(q.toLowerCase()));
   async function del(id) {
     if (!confirm('Delete this trade?')) return;
@@ -846,8 +1017,8 @@ function HistoryPage({ api, accountId, account, trades, setTrades, setEditing, s
   return <section>
     <Header title="History" hint={`${list.length} of ${trades.length} trades`} action={<button onClick={exportJson}><Download size={16} />Export JSON</button>} />
     <div className="toolbar"><div className="search"><Filter size={16} /><input placeholder="Search setup, notes, result, asset..." value={q} onChange={(e) => setQ(e.target.value)} /></div><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All results</option><option value="win">Win</option><option value="loss">Loss</option><option value="breakeven">Breakeven</option><option value="miss">Miss</option></select></div>
-    <div className="table-wrap"><table><thead><tr>{['Date','Asset','Session','Mode','Dir','Ticks','RR','SL$','TP$','Balance','Con Loss','DD%','Setup','LTF Entry','P&L','Charts',''].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>
-      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>{t.mode || '-'}</td><td>{t.direction}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}<small>Max {t.maxTick ?? '-'}</small></td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td>{pct(t.ddLossPct * 100)}<small>{pct(t.sumDdLossPct * 100)}</small></td><td><b>{t.setupGrade}</b><small>{t.htfBias} {t.htfPoi}</small></td><td><b>{t.ltfEntry || '-'}</b><small>{t.keyZone || '-'}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}</td><td><ChartLinks trade={t} /></td><td className="row-actions"><button onClick={() => setEditing(t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
+    <div className="table-wrap"><table><thead><tr>{['Date','Asset','Session','Mode','Dir','Ticks','RR','SL$','TP$','Balance','Con Loss','DD%','Setup','LTF Entry','Net P&L','Charts',''].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>
+      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>{t.mode || '-'}</td><td>{t.direction}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}<small>Max {t.maxTick ?? '-'}</small></td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td>{pct(t.ddLossPct * 100)}<small>{pct(t.sumDdLossPct * 100)}</small></td><td><b>{t.setupGrade}</b><small>{t.htfBias} {t.htfPoi}</small></td><td><b>{t.ltfEntry || '-'}</b><small>{t.keyZone || '-'}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}<small>Fee {money(t.commissionAmount || 0)}</small></td><td><ChartLinks trade={t} /></td><td className="row-actions"><button onClick={() => setEditing(t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
     </tbody></table></div>
   </section>;
 }
@@ -863,8 +1034,8 @@ function ChartLinks({ trade }) {
   return <table className="chart-link-table"><thead><tr>{links.map(([label]) => <th key={label}>{label}</th>)}</tr></thead><tbody><tr>{links.map(([label, url]) => <td key={label}>{url ? <a href={url} target="_blank" rel="noreferrer">↗</a> : <span>-</span>}</td>)}</tr></tbody></table>;
 }
 
-function CalendarPage({ trades }) {
-  const days = useMemo(() => groupBy(computeLedger(trades), 'date').map((d) => ({ ...d, name: d.name.slice(5) })).sort((a, b) => a.name.localeCompare(b.name)), [trades]);
+function CalendarPage({ trades, account }) {
+  const days = useMemo(() => groupBy(computeLedger(trades, account || 50000), 'date').map((d) => ({ ...d, name: d.name.slice(5) })).sort((a, b) => a.name.localeCompare(b.name)), [trades, account]);
   const dayChart = {
     labels: days.map((day) => day.name),
     datasets: [{
@@ -896,6 +1067,8 @@ const dimensionOptions = [
 
 const metricOptions = [
   ['trades', 'Trades'],
+  ['grossPnl', 'Gross P&L'],
+  ['commissionAmount', 'Commission'],
   ['pnl', 'Net P&L'],
   ['winRate', 'Winrate'],
   ['avgRr', 'Avg RR'],
@@ -908,7 +1081,7 @@ function metricValue(row, metric) {
 }
 
 function metricLabel(metric, value) {
-  if (metric === 'pnl') return money(value);
+  if (metric === 'pnl' || metric === 'grossPnl' || metric === 'commissionAmount') return money(value);
   if (metric === 'winRate') return pct(value);
   if (metric === 'avgRr') return fmtR(value);
   if (metric === 'avgDuration') return fmtMinutes(value);
@@ -918,7 +1091,7 @@ function metricLabel(metric, value) {
 
 function BuilderChart({ data, metric, chartType }) {
   const rows = data.map((row) => ({ ...row, value: metricValue(row, metric) }));
-  const valueKind = metric === 'pnl' ? 'money' : metric === 'winRate' ? 'percent' : metric === 'avgRr' ? 'rr' : metric === 'avgDuration' ? 'minutes' : metric === 'avgTick' ? 'tick' : 'number';
+  const valueKind = ['pnl', 'grossPnl', 'commissionAmount'].includes(metric) ? 'money' : metric === 'winRate' ? 'percent' : metric === 'avgRr' ? 'rr' : metric === 'avgDuration' ? 'minutes' : metric === 'avgTick' ? 'tick' : 'number';
   if (chartType === 'pie' || chartType === 'doughnut') {
     return <SmartChart type={chartType} data={{
       labels: rows.map((row) => row.name),
@@ -959,7 +1132,7 @@ function AnalyticsPage({ trades, stats, account }) {
   const [builderDimension, setBuilderDimension] = useState('entryHour');
   const [builderMetric, setBuilderMetric] = useState('pnl');
   const [chartType, setChartType] = useState('bar');
-  const ledger = computeLedger(trades, account?.startingBalance || 50000);
+  const ledger = computeLedger(trades, account || 50000);
   const data = groupBy(ledger, dimension);
   const builderData = groupBy(ledger, builderDimension).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const breakdownChart = {
@@ -1057,29 +1230,38 @@ function JournalPage({ api, accountId }) {
 }
 
 function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, user, setCurrentUser, reload, setToast }) {
-  const [name, setName] = useState(account?.name || '');
-  const [balance, setBalance] = useState(account?.startingBalance || 50000);
+  const [accountDraft, setAccountDraft] = useState(accountDraftFrom(account));
+  const [templateId, setTemplateId] = useState('custom');
   const [optionDrafts, setOptionDrafts] = useState({});
   const [assetDrafts, setAssetDrafts] = useState([]);
   const [savingOption, setSavingOption] = useState('');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [visiblePasswords, setVisiblePasswords] = useState({ currentPassword: false, newPassword: false, confirmPassword: false });
   const [profile, setProfile] = useState(user?.profile || {});
-  useEffect(() => { setName(account?.name || ''); setBalance(account?.startingBalance || 50000); }, [account?.id]);
+  useEffect(() => setAccountDraft(accountDraftFrom(account)), [account?.id]);
   useEffect(() => setOptionDrafts(Object.fromEntries(Object.entries(options).map(([key, vals]) => [key, vals.join('\n')]))), [options]);
   useEffect(() => setAssetDrafts(assets.map((asset) => ({ ...asset }))), [assets]);
   useEffect(() => setProfile(user?.profile || {}), [user?.id, user?.profile]);
+  function setAccountField(key, value) {
+    setAccountDraft((draft) => ({ ...draft, [key]: value }));
+  }
+  function applyTemplate() {
+    const selected = portfolioTemplates.find((template) => template.id === templateId);
+    if (!selected) return;
+    setAccountDraft((draft) => ({ ...draft, ...selected.values }));
+    setToast('Portfolio template applied');
+  }
   async function saveAccount() {
-    await api(`/accounts/${account.id}`, { method: 'PUT', body: JSON.stringify({ name, type: account.type, startingBalance: balance }) });
+    await api(`/accounts/${account.id}`, { method: 'PUT', body: JSON.stringify(accountDraft) });
     await reload(account.id);
-    setToast('Settings saved');
+    setToast('Portfolio saved');
   }
   async function addAccount() {
     if (accounts.length >= portfolioLimit) {
       setToast(`Portfolio limit reached (${portfolioLimit})`);
       return;
     }
-    const data = await api('/accounts', { method: 'POST', body: JSON.stringify({ name: 'New Account', type: 'live', startingBalance: 50000 }) });
+    const data = await api('/accounts', { method: 'POST', body: JSON.stringify(blankAccount) });
     await reload(data.id);
     setToast('Portfolio created');
   }
@@ -1172,7 +1354,7 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
         <div className="actions"><button className="primary" onClick={saveProfile}><Save size={16} />Save profile</button></div>
       </div>
     </div></Panel>
-    <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="form-grid"><Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Starting Balance"><input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} /></Field></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
+    <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="template-row"><Field label="Auto preset"><select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>{portfolioTemplates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}</select></Field><button onClick={applyTemplate}><SlidersHorizontal size={15} />Apply</button></div><div className="form-grid"><Field label="Name"><input value={accountDraft.name || ''} onChange={(e) => setAccountField('name', e.target.value)} /></Field><Field label="Provider"><input value={accountDraft.provider || ''} onChange={(e) => setAccountField('provider', e.target.value)} placeholder="Apex, MFF, TopStep, FTMO..." /></Field><Field label="Plan"><input value={accountDraft.planName || ''} onChange={(e) => setAccountField('planName', e.target.value)} placeholder="50K Evaluation" /></Field><Field label="Market"><input value={accountDraft.marketType || ''} onChange={(e) => setAccountField('marketType', e.target.value)} placeholder="Futures / Forex" /></Field><Field label="Type"><select value={accountDraft.type || 'live'} onChange={(e) => setAccountField('type', e.target.value)}><option value="backtest">backtest</option><option value="forward">forward</option><option value="live">live</option><option value="funded">funded</option></select></Field><Field label="Starting Balance"><input type="number" value={accountDraft.startingBalance || ''} onChange={(e) => setAccountField('startingBalance', e.target.value)} /></Field></div><div className="rule-grid"><Field label="Profit Target"><input type="number" value={accountDraft.profitTarget || ''} onChange={(e) => setAccountField('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={accountDraft.dailyLossLimit || ''} onChange={(e) => setAccountField('dailyLossLimit', e.target.value)} /></Field><Field label="Max Drawdown"><input type="number" value={accountDraft.maxDrawdown || ''} onChange={(e) => setAccountField('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={accountDraft.trailingDrawdown || ''} onChange={(e) => setAccountField('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={accountDraft.maxContracts || ''} onChange={(e) => setAccountField('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={accountDraft.minTradingDays || ''} onChange={(e) => setAccountField('minTradingDays', e.target.value)} /></Field></div><div className="form-grid compact"><Field label="Consistency Rule"><textarea value={accountDraft.consistencyRule || ''} onChange={(e) => setAccountField('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={accountDraft.payoutRule || ''} onChange={(e) => setAccountField('payoutRule', e.target.value)} /></Field></div><div className="fee-grid"><Field label="Commission type"><select value={accountDraft.commissionType || 'none'} onChange={(e) => setAccountField('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Amount"><input type="number" step="any" value={accountDraft.commissionAmount ?? ''} onChange={(e) => setAccountField('commissionAmount', e.target.value)} /></Field><Field label="Scope"><select value={accountDraft.commissionScope || 'roundTrip'} onChange={(e) => setAccountField('commissionScope', e.target.value)}><option value="roundTrip">Round trip</option><option value="entry">Entry only</option><option value="exit">Exit only</option></select></Field></div><Field label="Commission note"><input value={accountDraft.commissionNotes || ''} onChange={(e) => setAccountField('commissionNotes', e.target.value)} placeholder="Keep this synced with your broker statement" /></Field><div className="portfolio-summary"><span>{accountDraft.provider || 'Custom'} / {accountDraft.planName || 'Manual plan'}</span><b>{money(accountDraft.startingBalance || 0)}</b><small>{commissionTypeLabels[accountDraft.commissionType || 'none']} {accountDraft.commissionAmount ? `• ${accountDraft.commissionAmount}` : ''}</small></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
     <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
     <Panel title="Account note"><div className="empty compact-empty">Use Security to update your own password. Admins can manage roles, status, and portfolio limits from the Admin page.</div></Panel></div>
