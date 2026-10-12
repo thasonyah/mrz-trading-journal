@@ -366,11 +366,9 @@ function renderDailyResultsChart(section) {
   });
 }
 
-async function fetchTrades() {
+async function fetchTrades(accountId) {
   const token = localStorage.getItem('etj_token');
   if (!token) return [];
-  const accountSelect = document.querySelector('.sidebar select');
-  const accountId = accountSelect?.value;
   if (!accountId) return [];
   const response = await fetch(`${API}/accounts/${accountId}/trades`, {
     headers: { Authorization: `Bearer ${token}` }
@@ -380,14 +378,17 @@ async function fetchTrades() {
   return data.trades || [];
 }
 
-let state = { month: today().slice(0, 7), week: '', query: '', trades: [], mounted: false, chart: null };
+let state = { month: today().slice(0, 7), week: '', query: '', trades: [], mounted: false, chart: null, accountId: '' };
 
 async function mountCalendar() {
   const section = [...document.querySelectorAll('.workspace section')].find((node) => node.querySelector('h1')?.textContent?.trim() === 'Calendar');
-  if (!section || section.dataset.ztjCalendar === 'ready') return;
-  const trades = await fetchTrades();
+  if (!section) return;
+  const accountId = document.querySelector('.sidebar select')?.value;
+  if (!accountId) return;
+  if (section.dataset.ztjCalendar === 'ready' && state.accountId === accountId) return;
+  const trades = await fetchTrades(accountId);
   const latest = trades.filter((trade) => trade.date).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-  state = { ...state, trades, month: latest?.date?.slice(0, 7) || state.month, week: latest?.date ? startOfWeek(latest.date) : state.week, mounted: true };
+  state = { ...state, accountId, trades, month: latest?.date?.slice(0, 7) || state.month, week: latest?.date ? startOfWeek(latest.date) : state.week, mounted: true };
   render(section);
 }
 
