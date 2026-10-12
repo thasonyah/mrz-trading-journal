@@ -1,5 +1,18 @@
+import Chart from 'chart.js/auto';
+
 const API = import.meta.env.VITE_API_BASE
   || (location.hostname === '127.0.0.1' && location.port === '5173' ? 'http://127.0.0.1:5174/api' : '/api');
+
+const chartColors = {
+  gold: '#e0a92e',
+  goldSoft: 'rgba(224, 169, 46, 0.28)',
+  win: '#2ecb70',
+  winSoft: 'rgba(46, 203, 112, 0.26)',
+  loss: '#e5484d',
+  lossSoft: 'rgba(229, 72, 77, 0.26)',
+  muted: '#8b8d99',
+  grid: '#22242c'
+};
 
 const money = (n) => Number.isFinite(Number(n))
   ? `${Number(n) < 0 ? '-' : ''}$${Math.abs(Number(n)).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`
@@ -15,6 +28,24 @@ function dateKey(date) {
 
 function shortDate(dateString) {
   return dateString ? dateString.slice(5) : '';
+}
+
+function startOfWeek(dateString) {
+  const date = new Date(`${dateString}T00:00:00`);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  return dateKey(date);
+}
+
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return dateKey(date);
+}
+
+function weekLabel(weekStart) {
+  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 4))}`;
 }
 
 function longDate(dateString) {
@@ -54,6 +85,92 @@ function fmtR(value) {
   return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}R` : '-';
 }
 
+function chartOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { intersect: false, mode: 'index' },
+    animation: { duration: 650, easing: 'easeOutQuart' },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: chartColors.muted,
+          boxWidth: 10,
+          boxHeight: 10,
+          usePointStyle: true,
+          pointStyle: 'rectRounded',
+          padding: 14
+        }
+      },
+      tooltip: {
+        backgroundColor: '#101116',
+        borderColor: '#2f313b',
+        borderWidth: 1,
+        titleColor: '#e8e9ee',
+        bodyColor: '#d9d5d3',
+        padding: 12,
+        cornerRadius: 8,
+        displayColors: true,
+        callbacks: {
+          label(context) {
+            const label = context.dataset.label ? `${context.dataset.label}: ` : '';
+            return `${label}${money(context.parsed?.y ?? context.parsed)}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        stacked: true,
+        grid: { color: 'rgba(34, 36, 44, 0.55)', drawBorder: false },
+        ticks: { color: chartColors.muted, maxRotation: 0, autoSkipPadding: 14 }
+      },
+      y: {
+        stacked: true,
+        beginAtZero: true,
+        grid: { color: chartColors.grid, drawBorder: false },
+        ticks: { color: chartColors.muted, callback: (value) => money(value) }
+      }
+    }
+  };
+}
+
+function dailyResultChart(rows) {
+  return {
+    labels: rows.map((row) => row.label || shortDate(row.date)),
+    datasets: [
+      {
+        label: 'Daily P&L',
+        data: rows.map((row) => Number(row.pnl || 0)),
+        backgroundColor: rows.map((row) => Number(row.pnl || 0) >= 0 ? chartColors.winSoft : chartColors.lossSoft),
+        borderColor: rows.map((row) => Number(row.pnl || 0) >= 0 ? chartColors.win : chartColors.loss),
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'daily-result'
+      },
+      {
+        label: 'Commission',
+        data: rows.map((row) => -Math.abs(Number(row.commission || 0))),
+        backgroundColor: chartColors.goldSoft,
+        borderColor: chartColors.gold,
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'daily-result'
+      },
+      {
+        label: 'SL',
+        data: rows.map((row) => -Math.abs(Number(row.sl || 0))),
+        backgroundColor: chartColors.lossSoft,
+        borderColor: chartColors.loss,
+        borderWidth: 1,
+        borderRadius: 5,
+        stack: 'daily-result'
+      }
+    ]
+  };
+}
+
 function resultClass(result) {
   if (result === 'win') return 'win';
   if (result === 'miss') return 'miss';
@@ -63,6 +180,12 @@ function resultClass(result) {
 
 function tradePnl(trade) {
   return Number(trade.pnl ?? trade.netPnl ?? 0);
+}
+
+function filteredTrades(state) {
+  const q = state.query.trim().toLowerCase();
+  if (!q) return state.trades;
+  return state.trades.filter((trade) => JSON.stringify(trade).toLowerCase().includes(q));
 }
 
 function dailyMap(trades) {
@@ -81,6 +204,26 @@ function dailyMap(trades) {
     map.set(trade.date, current);
   });
   return map;
+}
+
+function weekOptions(trades) {
+  return [...new Set(trades.filter((trade) => trade.date).map((trade) => startOfWeek(trade.date)))].sort();
+}
+
+function weekRows(trades, activeWeek) {
+  if (!activeWeek) return [];
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = addDays(activeWeek, index);
+    const rows = trades.filter((trade) => trade.date === date);
+    return {
+      date,
+      label: shortDate(date),
+      pnl: rows.reduce((sum, trade) => sum + tradePnl(trade), 0),
+      sl: rows.reduce((sum, trade) => sum + ((trade.result === 'loss' || trade.result === 'reversed') ? Number(trade.slAmount || 0) : 0), 0),
+      commission: rows.reduce((sum, trade) => sum + Number(trade.commissionAmount || 0), 0),
+      trades: rows.length
+    };
+  });
 }
 
 function chartLinks(trade) {
@@ -137,29 +280,16 @@ function lightbox(day) {
 }
 
 function calendarMarkup(state) {
-  const q = state.query.trim().toLowerCase();
-  const map = dailyMap(state.trades);
+  const matchingTrades = filteredTrades(state);
+  const map = dailyMap(matchingTrades);
   const days = monthDays(state.month);
-  const filtered = new Map();
-  [...map.values()].forEach((day) => {
-    const matches = q ? day.trades.filter((trade) => JSON.stringify(trade).toLowerCase().includes(q)) : day.trades;
-    if (!matches.length) return;
-    filtered.set(day.date, {
-      ...day,
-      trades: matches,
-      pnl: matches.reduce((sum, trade) => sum + tradePnl(trade), 0),
-      sl: matches.reduce((sum, trade) => sum + ((trade.result === 'loss' || trade.result === 'reversed') ? Number(trade.slAmount || 0) : 0), 0),
-      commission: matches.reduce((sum, trade) => sum + Number(trade.commissionAmount || 0), 0)
-    });
-  });
+  const filtered = map;
   const visible = days.map((day) => filtered.get(day.date)).filter(Boolean);
   const monthNet = visible.reduce((sum, day) => sum + Number(day.pnl || 0), 0);
   const monthCommission = visible.reduce((sum, day) => sum + Number(day.commission || 0), 0);
-  const bars = visible.map((day) => {
-    const max = Math.max(...visible.map((row) => Math.abs(row.pnl) + Math.abs(row.sl) + Math.abs(row.commission)), 1);
-    const height = Math.max(8, Math.round((Math.abs(day.pnl) / max) * 120));
-    return `<button class="trade-pill ${day.pnl >= 0 ? 'win' : 'loss'}" data-date="${day.date}" style="min-height:${height}px;align-content:end">${day.label} ${money(day.pnl)}</button>`;
-  }).join('');
+  const weeks = weekOptions(matchingTrades);
+  const activeWeek = weeks.includes(state.week) ? state.week : weeks.at(-1) || '';
+  state.week = activeWeek;
 
   return `
     <div class="page-head"><div><h1>Calendar</h1><p>Month view, daily trade activity, and order drilldown</p></div></div>
@@ -208,9 +338,32 @@ function calendarMarkup(state) {
     </div>
     <div class="panel">
       <div class="panel-title">Daily Results</div>
-      <div class="chart-wrap tall" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));align-items:end;gap:8px">${bars || '<div class="empty">No data yet</div>'}</div>
+      <div class="panel-toolbar">
+        <span>${activeWeek ? `Week ${weekLabel(activeWeek)}` : 'No week selected'}</span>
+        <select data-calendar-week ${weeks.length ? '' : 'disabled'}>
+          ${weeks.map((week) => `<option value="${week}" ${week === activeWeek ? 'selected' : ''}>${weekLabel(week)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="chart-wrap tall">
+        ${weeks.length ? '<canvas data-daily-results-chart></canvas>' : '<div class="empty">No data yet</div>'}
+      </div>
     </div>
   `;
+}
+
+function renderDailyResultsChart(section) {
+  if (state.chart) {
+    state.chart.destroy();
+    state.chart = null;
+  }
+  const canvas = section.querySelector('[data-daily-results-chart]');
+  if (!canvas) return;
+  const rows = weekRows(filteredTrades(state), state.week);
+  state.chart = new Chart(canvas, {
+    type: 'bar',
+    data: dailyResultChart(rows),
+    options: chartOptions()
+  });
 }
 
 async function fetchTrades() {
@@ -227,20 +380,25 @@ async function fetchTrades() {
   return data.trades || [];
 }
 
-let state = { month: today().slice(0, 7), query: '', trades: [], mounted: false };
+let state = { month: today().slice(0, 7), week: '', query: '', trades: [], mounted: false, chart: null };
 
 async function mountCalendar() {
   const section = [...document.querySelectorAll('.workspace section')].find((node) => node.querySelector('h1')?.textContent?.trim() === 'Calendar');
   if (!section || section.dataset.ztjCalendar === 'ready') return;
   const trades = await fetchTrades();
   const latest = trades.filter((trade) => trade.date).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-  state = { ...state, trades, month: latest?.date?.slice(0, 7) || state.month, mounted: true };
+  state = { ...state, trades, month: latest?.date?.slice(0, 7) || state.month, week: latest?.date ? startOfWeek(latest.date) : state.week, mounted: true };
   render(section);
 }
 
 function render(section) {
   section.dataset.ztjCalendar = 'ready';
+  if (state.chart) {
+    state.chart.destroy();
+    state.chart = null;
+  }
   section.innerHTML = calendarMarkup(state);
+  renderDailyResultsChart(section);
   section.querySelector('[data-calendar-prev]')?.addEventListener('click', () => {
     state.month = shiftMonth(state.month, -1);
     render(section);
@@ -255,6 +413,10 @@ function render(section) {
   });
   section.querySelector('[data-calendar-search]')?.addEventListener('input', (event) => {
     state.query = event.target.value;
+    render(section);
+  });
+  section.querySelector('[data-calendar-week]')?.addEventListener('change', (event) => {
+    state.week = event.target.value;
     render(section);
   });
   section.querySelectorAll('[data-date]').forEach((button) => {
