@@ -32,15 +32,15 @@ const defaultOptions = [
 ];
 
 const defaultAssets = [
-  ['NQ1', 0.25, 5],
-  ['MNQ1', 0.25, 0.5],
-  ['MGC1', 0.1, 1],
-  ['GC1', 0.1, 10],
-  ['XAUUSD', 0.01, 1],
-  ['MES1', 0.25, 1.25],
-  ['ES1', 0.25, 12.5],
-  ['MYM1', 1, 0.5],
-  ['MCL1', 0.01, 1]
+  ['NQ1', 0.25, 5, 0],
+  ['MNQ1', 0.25, 0.5, 0],
+  ['MGC1', 0.1, 1, 0],
+  ['GC1', 0.1, 10, 0],
+  ['XAUUSD', 0.01, 1, 0],
+  ['MES1', 0.25, 1.25, 0],
+  ['ES1', 0.25, 12.5, 0],
+  ['MYM1', 1, 0.5, 0],
+  ['MCL1', 0.01, 1, 0]
 ];
 
 const demoTrades = [
@@ -67,8 +67,8 @@ await transaction(async (dbx) => {
   for (const [key, label, options] of defaultOptions) {
     await dbx.run('INSERT INTO option_sets (user_id, field_key, label, options_json) VALUES (?, ?, ?, ?)', [userId, key, label, JSON.stringify(options)]);
   }
-  for (const [index, [symbol, tickSize, dollarPerPoint]] of defaultAssets.entries()) {
-    await dbx.run('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, sort_order) VALUES (?, ?, ?, ?, ?)', [userId, symbol, tickSize, dollarPerPoint, index + 1]);
+  for (const [index, [symbol, tickSize, dollarPerPoint, commissionAmount]] of defaultAssets.entries()) {
+    await dbx.run('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, commission_amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)', [userId, symbol, tickSize, dollarPerPoint, commissionAmount, index + 1]);
   }
 
   const tradeSql = `

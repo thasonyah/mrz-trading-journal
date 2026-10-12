@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server/dev.js",
+    "dev": "node server/apply-asset-commission-patch.js && node server/dev.js",
     "client": "vite --host 127.0.0.1",
-    "server": "node server/index.js",
-    "start": "node server/index.js",
+    "server": "node server/apply-asset-commission-patch.js && node server/index.js",
+    "start": "node server/apply-asset-commission-patch.js && node server/index.js",
     "migrate": "node server/migrate.js",
     "seed": "node server/seed.js",
     "build": "vite build",
