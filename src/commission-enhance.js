@@ -3,7 +3,12 @@ const API = import.meta.env.VITE_API_BASE
 
 const state = {
   assets: [],
-  loadedAt: 0
+  loadedAt: 0,
+  loadPromise: null,
+  scheduled: 0,
+  viewKey: '',
+  settingsSignature: '',
+  tradeSyncedKey: ''
 };
 
 function token() {
@@ -12,18 +17,22 @@ function token() {
 
 async function loadAssets(force = false) {
   if (!force && state.assets.length && Date.now() - state.loadedAt < 15000) return state.assets;
+  if (!force && state.loadPromise) return state.loadPromise;
   const auth = token();
   if (!auth) return [];
-  try {
+  state.loadPromise = (async () => {
     const response = await fetch(`${API}/assets`, { headers: { Authorization: `Bearer ${auth}` } });
     if (!response.ok) return state.assets;
     const data = await response.json();
     state.assets = data.assets || [];
     state.loadedAt = Date.now();
-  } catch {
     return state.assets;
-  }
-  return state.assets;
+  })().catch(() => {
+    return state.assets;
+  }).finally(() => {
+    state.loadPromise = null;
+  });
+  return state.loadPromise;
 }
 
 function setNativeValue(input, value) {
@@ -34,7 +43,8 @@ function setNativeValue(input, value) {
 }
 
 function labeledControl(labelText) {
-  const labels = [...document.querySelectorAll('label.field')];
+  const workspace = document.querySelector('.workspace') || document;
+  const labels = [...workspace.querySelectorAll('label.field')];
   const label = labels.find((node) => node.querySelector(':scope > span')?.textContent?.trim() === labelText);
   return label?.querySelector('input, select, textarea') || null;
 }
@@ -66,6 +76,9 @@ function syncTradeCommission() {
 
 function enhanceTradeForm() {
   if (!document.querySelector('.workspace h1')?.textContent?.includes('Add Trade')) return;
+  const key = `${labeledControl('Asset')?.value || ''}|${resultValue()}`;
+  if (state.tradeSyncedKey === key) return;
+  state.tradeSyncedKey = key;
   loadAssets().then(syncTradeCommission);
 }
 
@@ -91,6 +104,10 @@ function commissionInputForRow(row, asset) {
 function enhanceAssetPresets() {
   const rows = assetRows();
   if (!rows.length) return;
+  const signature = rows.map((row) => row.querySelector('input')?.value || '').join('|');
+  const needsInputs = rows.some((row) => !row.querySelector('input[data-asset-commission]'));
+  if (!needsInputs && state.settingsSignature === signature) return;
+  state.settingsSignature = signature;
   loadAssets().then((assets) => {
     rows.forEach((row) => {
       const symbol = row.querySelector('input')?.value;
@@ -119,6 +136,8 @@ window.fetch = async (resource, options = {}) => {
   const response = await originalFetch(resource, options);
   if (/\/api\/assets(\/\d+)?(\?|$)/.test(url) && ['POST', 'PUT', 'DELETE'].includes(method)) {
     setTimeout(() => loadAssets(true).then(() => {
+      state.settingsSignature = '';
+      state.tradeSyncedKey = '';
       enhanceAssetPresets();
       syncTradeCommission();
     }), 350);
@@ -127,18 +146,31 @@ window.fetch = async (resource, options = {}) => {
 };
 
 document.addEventListener('change', (event) => {
-  if (event.target === labeledControl('Asset') || event.target === labeledControl('Result')) {
+  const isTradeControl = event.target === labeledControl('Asset') || event.target === labeledControl('Result');
+  if (isTradeControl) {
+    state.tradeSyncedKey = '';
     loadAssets().then(syncTradeCommission);
   }
 });
 
-const observer = new MutationObserver(() => {
+function enhanceCurrentView() {
+  const heading = document.querySelector('.workspace h1')?.textContent?.trim() || '';
+  const viewKey = `${heading}|${document.querySelectorAll('.asset-row').length}`;
+  if (state.viewKey === viewKey && heading !== 'Settings') return;
+  state.viewKey = viewKey;
   enhanceAssetPresets();
   enhanceTradeForm();
+}
+
+function scheduleEnhance() {
+  window.clearTimeout(state.scheduled);
+  state.scheduled = window.setTimeout(enhanceCurrentView, 180);
+}
+
+const observer = new MutationObserver(() => {
+  scheduleEnhance();
 });
 
-observer.observe(document.documentElement, { childList: true, subtree: true });
-loadAssets().then(() => {
-  enhanceAssetPresets();
-  enhanceTradeForm();
-});
+observer.observe(document.body, { childList: true, subtree: true });
+window.addEventListener('load', scheduleEnhance);
+scheduleEnhance();
