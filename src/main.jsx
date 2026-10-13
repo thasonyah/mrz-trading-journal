@@ -760,6 +760,9 @@ function App() {
     api('/me').then((data) => setCurrentUser(data.user)).catch(() => setSession(null));
   }, [session?.token]);
   useEffect(() => { if (session?.token) loadAll().catch(() => setSession(null)); }, [session?.token, scopedUserId]);
+  useEffect(() => {
+    if (page === 'coach' && currentUser?.role !== 'admin') setPage('dashboard');
+  }, [page, currentUser?.role]);
   useEffect(() => { if (toast) { const id = setTimeout(() => setToast(''), 2200); return () => clearTimeout(id); } }, [toast]);
 
   if (!session?.token) return <AuthScreen setSession={setSession} />;
@@ -772,9 +775,9 @@ function App() {
     ['calendar', CalendarDays, 'Calendar'],
     ['analytics', BarChart3, 'Analytics'],
     ['journal', BookOpen, 'Playbook'],
-    ['settings', Settings, 'Settings'],
-    ['coach', Shield, 'Admin']
+    ['settings', Settings, 'Settings']
   ];
+  if (currentUser?.role === 'admin') nav.push(['coach', Shield, 'Admin']);
   function logout() {
     localStorage.removeItem('etj_token');
     setSession(null);
