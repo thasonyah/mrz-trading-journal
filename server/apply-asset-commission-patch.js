@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const indexPath = fileURLToPath(new URL('./index.js', import.meta.url));
+const appPath = fileURLToPath(new URL('../src/main.jsx', import.meta.url));
 let source = fs.readFileSync(indexPath, 'utf8');
+let appSource = fs.readFileSync(appPath, 'utf8');
 let changed = false;
+let appChanged = false;
 
 const replacements = [
   [
@@ -130,4 +133,31 @@ if (changed) {
   fs.writeFileSync(indexPath, source);
 } else {
   console.log('Startup API patches already applied');
+}
+
+const appReplacements = [
+  [
+    `const profileContactLabels = { phone: 'Phone', email: 'E-mail', facebook: 'Facebook', line: 'Line' };`,
+    `const profileContactLabels = { phone: 'Phone', email: 'E-mail', facebook: 'Facebook', line: 'ข้อความสถานะ' };`
+  ],
+  [
+    `<Field label="Line"><input value={profile.line || ''} onChange={(e) => setProfile({ ...profile, line: e.target.value })} placeholder="Line ID" /></Field>`,
+    `<Field label="ข้อความสถานะ"><input value={profile.line || ''} onChange={(e) => setProfile({ ...profile, line: e.target.value })} placeholder="ข้อความสถานะ" /></Field>`
+  ]
+];
+
+for (const [from, to] of appReplacements) {
+  if (appSource.includes(from)) {
+    appSource = appSource.replaceAll(from, to);
+    appChanged = true;
+  } else if (!appSource.includes(to)) {
+    throw new Error('Profile status label patch could not find an expected src/main.jsx segment');
+  }
+}
+
+if (appChanged) {
+  fs.writeFileSync(appPath, appSource);
+  console.log('Applied profile status label patch');
+} else {
+  console.log('Profile status label patch already applied');
 }
