@@ -10,7 +10,7 @@
     "start": "node server/apply-asset-commission-patch.js && node server/index.js",
     "migrate": "node server/migrate.js",
     "seed": "node server/seed.js",
-    "build": "vite build",
+    "build": "node server/apply-asset-commission-patch.js && vite build",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
