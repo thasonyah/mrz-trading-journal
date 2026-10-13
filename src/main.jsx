@@ -21,7 +21,7 @@ const fmtMinutes = (minutes) => {
   return hours ? `${hours}h ${mins}m` : `${mins}m`;
 };
 const today = () => new Date().toISOString().slice(0, 10);
-const profileContactLabels = { phone: 'Phone', email: 'E-mail', facebook: 'Facebook', line: 'Line' };
+const profileContactLabels = { phone: 'Phone', email: 'E-mail', facebook: 'Facebook', line: 'ข้อความสถานะ' };
 
 function profileContact(profile = {}, fallbackEmail = '') {
   const type = profile.contactType || 'email';
@@ -91,10 +91,7 @@ function chartFormat(kind, value) {
 }
 
 function dateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return date.toISOString().slice(0, 10);
 }
 
 function startOfWeek(dateString) {
@@ -116,7 +113,7 @@ function shortDate(dateString) {
 }
 
 function weekLabel(weekStart) {
-  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 4))}`;
+  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 6))}`;
 }
 
 function chartOptions(kind = 'number') {
@@ -210,17 +207,6 @@ function dailyResultChart(rows = []) {
         borderColor: rows.map((row) => Number(row.pnl || 0) >= 0 ? chartColors.win : chartColors.loss),
         borderWidth: 1,
         borderRadius: 5,
-        stack: 'daily-result',
-        valueKind: 'money'
-      },
-      {
-        label: 'Commission',
-        data: rows.map((row) => -Math.abs(Number(row.commission || 0))),
-        backgroundColor: chartColors.goldSoft,
-        borderColor: chartColors.gold,
-        borderWidth: 1,
-        borderRadius: 5,
-        stack: 'daily-result',
         valueKind: 'money'
       },
       {
@@ -230,19 +216,20 @@ function dailyResultChart(rows = []) {
         borderColor: chartColors.loss,
         borderWidth: 1,
         borderRadius: 5,
-        stack: 'daily-result',
+        valueKind: 'money'
+      },
+      {
+        label: 'Commission',
+        data: rows.map((row) => -Math.abs(Number(row.commission || 0))),
+        backgroundColor: chartColors.goldSoft,
+        borderColor: chartColors.gold,
+        borderWidth: 1,
+        borderRadius: 5,
         valueKind: 'money'
       }
     ]
   };
 }
-
-const dailyResultOptions = makeOptions('money', {
-  scales: {
-    x: { stacked: true },
-    y: { stacked: true }
-  }
-});
 
 const defaultAssets = [
   { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5 },
@@ -615,8 +602,13 @@ function computeStats(trades, accountOrBalance = 50000) {
 
 function groupBy(trades, key) {
   const map = new Map();
+  const boolFields = new Set(['poiHasFvg', 'liquiditySweep', 'bos', 'choch']);
   trades.forEach((t) => {
-    const value = key === 'day' ? new Date(`${t.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' }) : (t[key] || 'Unspecified');
+    const value = key === 'day'
+      ? new Date(`${t.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' })
+      : boolFields.has(key)
+        ? (t[key] ? 'Yes' : 'No')
+        : (t[key] || 'Unspecified');
     const current = map.get(value) || { name: value, wins: 0, losses: 0, pnl: 0, grossPnl: 0, commissionAmount: 0, trades: 0, rrSum: 0, rrCount: 0, tickSum: 0, tickCount: 0, durationSum: 0, durationCount: 0 };
     current.trades += 1;
     current.pnl += Number(t.pnl || 0);
@@ -844,7 +836,7 @@ function Dashboard({ trades, stats, account, setPage }) {
   const activeWeek = selectedWeek || dashboardWeeks[dashboardWeeks.length - 1] || '';
   const weekDaily = useMemo(() => {
     if (!activeWeek) return [];
-    return Array.from({ length: 5 }, (_, index) => {
+    return Array.from({ length: 7 }, (_, index) => {
       const date = addDays(activeWeek, index);
       const rows = ledger.filter((trade) => trade.date === date);
       return {
@@ -939,7 +931,7 @@ function Dashboard({ trades, stats, account, setPage }) {
             {dashboardWeeks.map((week) => <option key={week} value={week}>{weekLabel(week)}</option>)}
           </select>
         </div>
-        <ChartWrap empty={!dashboardWeeks.length} tall><SmartChart type="bar" data={dashboardDailyChart} options={dailyResultOptions} /></ChartWrap>
+        <ChartWrap empty={!dashboardWeeks.length} tall><SmartChart type="bar" data={dashboardDailyChart} options={makeOptions('money')} /></ChartWrap>
       </Panel>
     </div>
     <div className="grid two dashboard-lower">
@@ -1123,19 +1115,26 @@ function CalendarPage({ trades, account }) {
     return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
   }, [ledger]);
   const dayChart = dailyResultChart(dailyResults);
-  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!dailyResults.length} tall><SmartChart type="bar" data={dayChart} options={dailyResultOptions} /></ChartWrap></Panel></section>;
+  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!dailyResults.length} tall><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap></Panel></section>;
 }
 
 const dimensionOptions = [
   ['entryHour', 'Entry Time'],
   ['session', 'Session'],
+  ['asset', 'Asset'],
+  ['mode', 'Mode'],
   ['ltfEntry', 'LTF Entry'],
   ['htfBias', 'HTF Bias'],
   ['htfPoi', 'HTF POI'],
+  ['poiHasFvg', 'POI has FVG'],
+  ['liquiditySweep', 'Liquidity Sweep'],
+  ['bos', 'BOS'],
+  ['choch', 'CHoCH'],
   ['mtfStructure', 'MTF Structure'],
   ['keyZone', 'Key Zone'],
   ['setupGrade', 'Setup Grade'],
   ['ruleViolation', 'Rule Violation'],
+  ['emotionBefore', 'Emotion Before'],
   ['emotionAfter', 'Emotion'],
   ['dayName', 'Day']
 ];
@@ -1155,6 +1154,15 @@ function metricValue(row, metric) {
   return metric === 'winRate' ? row.winRate * 100 : Number(row[metric] || 0);
 }
 
+function metricKind(metric) {
+  if (metric === 'pnl' || metric === 'grossPnl' || metric === 'commissionAmount') return 'money';
+  if (metric === 'winRate') return 'percent';
+  if (metric === 'avgRr') return 'rr';
+  if (metric === 'avgDuration') return 'minutes';
+  if (metric === 'avgTick') return 'tick';
+  return 'number';
+}
+
 function metricLabel(metric, value) {
   if (metric === 'pnl' || metric === 'grossPnl' || metric === 'commissionAmount') return money(value);
   if (metric === 'winRate') return pct(value);
@@ -1166,14 +1174,15 @@ function metricLabel(metric, value) {
 
 function BuilderChart({ data, metric, chartType }) {
   const rows = data.map((row) => ({ ...row, value: metricValue(row, metric) }));
-  const valueKind = ['pnl', 'grossPnl', 'commissionAmount'].includes(metric) ? 'money' : metric === 'winRate' ? 'percent' : metric === 'avgRr' ? 'rr' : metric === 'avgDuration' ? 'minutes' : metric === 'avgTick' ? 'tick' : 'number';
+  const valueKind = metricKind(metric);
   if (chartType === 'pie' || chartType === 'doughnut') {
+    const radialRows = rows.map((row) => ({ ...row, value: Math.abs(row.value) }));
     return <SmartChart type={chartType} data={{
-      labels: rows.map((row) => row.name),
+      labels: radialRows.map((row) => row.name),
       datasets: [{
         label: metricOptions.find(([value]) => value === metric)?.[1] || 'Value',
-        data: rows.map((row) => row.value),
-        backgroundColor: rows.map((_, index) => chartPalette[index % chartPalette.length]),
+        data: radialRows.map((row) => row.value),
+        backgroundColor: radialRows.map((_, index) => chartPalette[index % chartPalette.length]),
         borderColor: '#101116',
         borderWidth: 2,
         hoverOffset: 10,
@@ -1199,73 +1208,169 @@ function BuilderChart({ data, metric, chartType }) {
   if (chartType === 'line') {
     return <SmartChart type="line" data={chartData} options={makeOptions(valueKind)} />;
   }
-  return <SmartChart type="bar" data={chartData} options={makeOptions(valueKind)} />;
+  return <SmartChart type="bar" data={chartData} options={makeOptions(valueKind, chartType === 'horizontal' ? { indexAxis: 'y' } : {})} />;
 }
 
 function AnalyticsPage({ trades, stats, account }) {
+  const reportTabs = ['Overview', 'Time', 'Setup', 'Risk', 'Psychology', 'Custom'];
+  const [activeTab, setActiveTab] = useState('Overview');
   const [dimension, setDimension] = useState('htfBias');
   const [builderDimension, setBuilderDimension] = useState('entryHour');
   const [builderMetric, setBuilderMetric] = useState('pnl');
   const [chartType, setChartType] = useState('bar');
-  const ledger = computeLedger(trades, account || 50000);
-  const data = groupBy(ledger, dimension);
-  const builderData = groupBy(ledger, builderDimension).sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  const breakdownChart = {
-    labels: data.map((row) => row.name),
-    datasets: [
-      {
-        label: 'Wins',
-        data: data.map((row) => row.wins),
-        backgroundColor: chartColors.winSoft,
-        borderColor: chartColors.win,
-        borderWidth: 1,
-        borderRadius: 5,
-        stack: 'outcome',
-        valueKind: 'number',
-        yAxisID: 'y'
-      },
-      {
-        label: 'Losses',
-        data: data.map((row) => row.losses),
-        backgroundColor: chartColors.lossSoft,
-        borderColor: chartColors.loss,
-        borderWidth: 1,
-        borderRadius: 5,
-        stack: 'outcome',
-        valueKind: 'number',
-        yAxisID: 'y'
-      },
-      {
-        type: 'line',
-        label: 'P&L',
-        data: data.map((row) => row.pnl),
-        borderColor: chartColors.gold,
-        backgroundColor: chartColors.gold,
-        borderWidth: 2,
-        tension: 0.35,
-        pointRadius: 3,
-        valueKind: 'money',
-        yAxisID: 'y1'
-      }
-    ]
-  };
+  const [focusDimension, setFocusDimension] = useState('ltfEntry');
+  const [focusValue, setFocusValue] = useState('');
+  const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
+  const data = useMemo(() => groupBy(ledger, dimension), [ledger, dimension]);
+  const builderData = useMemo(() => groupBy(ledger, builderDimension).sort((a, b) => String(a.name).localeCompare(String(b.name))), [ledger, builderDimension]);
+  const timeRows = useMemo(() => groupBy(ledger, 'entryHour').sort((a, b) => String(a.name).localeCompare(String(b.name))), [ledger]);
+  const sessionRows = useMemo(() => groupBy(ledger, 'session'), [ledger]);
+  const ltfRows = useMemo(() => groupBy(ledger, 'ltfEntry').sort((a, b) => b.trades - a.trades), [ledger]);
+  const gradeRows = useMemo(() => groupBy(ledger, 'setupGrade'), [ledger]);
+  const violationRows = useMemo(() => groupBy(ledger.filter((t) => t.ruleViolation && t.ruleViolation !== 'None'), 'ruleViolation'), [ledger]);
+  const psychologyRows = useMemo(() => groupBy(ledger, 'emotionAfter'), [ledger]);
+  const structureRows = useMemo(() => groupBy(ledger, 'mtfStructure'), [ledger]);
+  const poiRows = useMemo(() => groupBy(ledger, 'htfPoi'), [ledger]);
+  const focusRows = useMemo(() => {
+    if (!focusValue) return ledger.slice(-8).reverse();
+    const boolFields = new Set(['poiHasFvg', 'liquiditySweep', 'bos', 'choch']);
+    return ledger.filter((trade) => {
+      const value = boolFields.has(focusDimension) ? (trade[focusDimension] ? 'Yes' : 'No') : (trade[focusDimension] || 'Unspecified');
+      return String(value) === String(focusValue);
+    }).slice(0, 12);
+  }, [ledger, focusDimension, focusValue]);
+  const bestSetup = [...ltfRows].sort((a, b) => (b.pnl || 0) - (a.pnl || 0))[0];
+  const worstSetup = [...ltfRows].sort((a, b) => (a.pnl || 0) - (b.pnl || 0))[0];
+  const bestTime = [...timeRows].sort((a, b) => (b.pnl || 0) - (a.pnl || 0))[0];
+  const costlyViolation = [...violationRows].sort((a, b) => (a.pnl || 0) - (b.pnl || 0))[0];
+  const bestEmotion = [...psychologyRows].sort((a, b) => (b.pnl || 0) - (a.pnl || 0))[0];
+  const breakdownChart = outcomePnlChart(data);
+  const timeChart = barLineChart(timeRows, 'pnl', 'winRate', 'Net P&L', 'Winrate');
+  const sessionChart = barLineChart(sessionRows, 'pnl', 'avgRr', 'Net P&L', 'Avg RR');
+  const ltfChart = horizontalMetricChart(ltfRows, 'trades', 'LTF Entry Receive', 'number');
+  const gradeChart = barLineChart(gradeRows, 'pnl', 'avgRr', 'Net P&L', 'Avg RR');
+  const structureChart = horizontalMetricChart(structureRows, 'pnl', 'Structure P&L', 'money');
+  const poiChart = horizontalMetricChart(poiRows, 'winRate', 'POI Winrate', 'percent');
+  const riskChart = barLineChart(violationRows.length ? violationRows : groupBy(ledger, 'ruleViolation'), 'pnl', 'trades', 'Rule Cost', 'Trades');
+  const commissionChart = barLineChart(groupBy(ledger, 'asset'), 'commissionAmount', 'pnl', 'Commission', 'Net P&L');
+  const psychologyChart = barLineChart(psychologyRows, 'pnl', 'winRate', 'Psychology P&L', 'Winrate');
   const dayRows = summaryRows(ledger, 'dayName', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
   const weekRows = summaryRows(ledger, 'weekNumber');
   const monthRows = summaryRows(ledger, 'monthNumber', Array.from({ length: 12 }, (_, i) => i + 1));
   return <section>
     <Header title="Analytics" hint="Find your edge by structure, time, psychology, and RR behavior" />
-    <div className="kpi-grid"><Kpi label="Trades" value={stats.total} /><Kpi label="Win / Loss / Miss" value={`${stats.wins} / ${stats.losses} / ${stats.miss}`} /><Kpi label="Avg Duration" value={fmtMinutes(stats.avgDuration)} /><Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} /><Kpi label="Best Time" value={stats.bestEntryHour?.name || '-'} /><Kpi label="Best RR Hypothesis" value={money(stats.bestRr?.value || 0)} /></div>
-    <Panel title="Custom Analyzer"><div className="builder-controls"><Field label="Dimension"><select value={builderDimension} onChange={(e) => setBuilderDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Metric"><select value={builderMetric} onChange={(e) => setBuilderMetric(e.target.value)}>{metricOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Chart"><select value={chartType} onChange={(e) => setChartType(e.target.value)}><option value="bar">Bar</option><option value="line">Line</option><option value="doughnut">Doughnut</option><option value="pie">Pie</option></select></Field></div><ChartWrap empty={!builderData.length}><BuilderChart data={builderData} metric={builderMetric} chartType={chartType} /></ChartWrap></Panel>
-    <div className="grid two">
-      <Panel title="Breakdown"><div className="toolbar"><select value={dimension} onChange={(e) => setDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><ChartWrap empty={!data.length}><SmartChart type="bar" data={breakdownChart} options={makeOptions('number', { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, grid: { color: chartColors.grid }, ticks: { color: chartColors.muted } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: chartColors.muted, callback: (value) => money(value) } } } })} /></ChartWrap></Panel>
+    <div className="report-tabs">{reportTabs.map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
+    <div className="kpi-grid analytics-kpis"><Kpi label="Trades" value={stats.total} /><Kpi label="Win / Loss / Miss" value={`${stats.wins} / ${stats.losses} / ${stats.miss}`} /><Kpi label="Avg Duration" value={fmtMinutes(stats.avgDuration)} /><Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} /><Kpi label="Best Time" value={bestTime?.name || '-'} /><Kpi label="Best RR Hypothesis" value={money(stats.bestRr?.value || 0)} /></div>
+    <div className="insight-strip">
+      <Insight title="Repeat" value={bestSetup?.name || '-'} meta={bestSetup ? `${money(bestSetup.pnl)} / ${pct(bestSetup.winRate * 100)}` : 'No setup data'} tone="good" />
+      <Insight title="Reduce" value={worstSetup?.name || '-'} meta={worstSetup ? `${money(worstSetup.pnl)} / ${worstSetup.trades} trades` : 'No setup data'} tone="bad" />
+      <Insight title="Golden Hour" value={bestTime?.name || '-'} meta={bestTime ? `${money(bestTime.pnl)} / ${fmtR(bestTime.avgRr)}` : 'No time data'} />
+      <Insight title="Leak" value={costlyViolation?.name || 'None'} meta={costlyViolation ? `${money(costlyViolation.pnl)} rule cost` : 'No violations logged'} tone={costlyViolation ? 'bad' : 'good'} />
+      <Insight title="Mindset" value={bestEmotion?.name || '-'} meta={bestEmotion ? `${money(bestEmotion.pnl)} / ${pct(bestEmotion.winRate * 100)}` : 'No psychology data'} />
+    </div>
+
+    {activeTab === 'Overview' && <>
+      <Panel title="Performance Breakdown"><div className="toolbar"><select value={dimension} onChange={(e) => setDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><ChartWrap empty={!data.length}><SmartChart type="bar" data={breakdownChart} options={makeOptions('number', { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, grid: { color: chartColors.grid }, ticks: { color: chartColors.muted } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: chartColors.muted, callback: (value) => money(value) } } } })} /></ChartWrap><ReportTable rows={data} focusDimension={dimension} setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
+      <div className="grid three summary-grid">
+        <SummaryTable title="Day Summary" rows={dayRows} />
+        <SummaryTable title="Week Summary" rows={weekRows} />
+        <SummaryTable title="Month Summary" rows={monthRows} />
+      </div>
+    </>}
+
+    {activeTab === 'Time' && <div className="grid two">
+      <Panel title="Entry Time Edge"><ChartWrap empty={!timeRows.length}><SmartChart type="bar" data={timeChart} options={dualAxisOptions('money', 'percent')} /></ChartWrap><ReportTable rows={timeRows} focusDimension="entryHour" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
+      <Panel title="Session Quality"><ChartWrap empty={!sessionRows.length}><SmartChart type="bar" data={sessionChart} options={dualAxisOptions('money', 'rr')} /></ChartWrap><ReportTable rows={sessionRows} focusDimension="session" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
+    </div>}
+
+    {activeTab === 'Setup' && <div className="grid two">
+      <Panel title="LTF Entry Receive"><ChartWrap empty={!ltfRows.length}><SmartChart type="bar" data={ltfChart} options={makeOptions('number', { indexAxis: 'y', plugins: { legend: { display: false } } })} /></ChartWrap><ReportTable rows={ltfRows} focusDimension="ltfEntry" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
+      <Panel title="Setup Grade Edge"><ChartWrap empty={!gradeRows.length}><SmartChart type="bar" data={gradeChart} options={dualAxisOptions('money', 'rr')} /></ChartWrap><ReportTable rows={gradeRows} focusDimension="setupGrade" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
+      <Panel title="MTF Structure"><ChartWrap empty={!structureRows.length}><SmartChart type="bar" data={structureChart} options={makeOptions('money', { indexAxis: 'y', plugins: { legend: { display: false } } })} /></ChartWrap></Panel>
+      <Panel title="POI Quality"><ChartWrap empty={!poiRows.length}><SmartChart type="bar" data={poiChart} options={makeOptions('percent', { indexAxis: 'y', plugins: { legend: { display: false } } })} /></ChartWrap></Panel>
+    </div>}
+
+    {activeTab === 'Risk' && <div className="grid two">
+      <Panel title="Rule Violation Cost"><ChartWrap empty={!ledger.length}><SmartChart type="bar" data={riskChart} options={dualAxisOptions('money', 'number')} /></ChartWrap><ReportTable rows={violationRows.length ? violationRows : groupBy(ledger, 'ruleViolation')} focusDimension="ruleViolation" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
+      <Panel title="Commission Load"><ChartWrap empty={!ledger.length}><SmartChart type="bar" data={commissionChart} options={dualAxisOptions('money', 'money')} /></ChartWrap><ReportTable rows={groupBy(ledger, 'asset')} focusDimension="asset" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
       <Panel title="RR Recommendation"><div className="table-wrap slim"><table><thead><tr><th>RR</th><th>Qualifying wins</th><th>Win Rate</th><th>Hypothetical value</th></tr></thead><tbody>{stats.rrRows.map((r) => <tr key={r.level} className={r.level === stats.bestRr?.level ? 'selected' : ''}><td>{fmtR(r.level)}</td><td>{r.count}</td><td>{pct(r.winRate * 100)}</td><td>{money(r.value)}</td></tr>)}</tbody></table></div></Panel>
-    </div>
-    <div className="grid three summary-grid">
-      <SummaryTable title="Day Summary" rows={dayRows} />
-      <SummaryTable title="Week Summary" rows={weekRows} />
-      <SummaryTable title="Month Summary" rows={monthRows} />
-    </div>
+      <Panel title="Risk Notes"><div className="report-notes"><b>What to watch</b><span>Compare commission, SL cost, and rule violations before increasing size. A profitable setup with high rule leakage should be fixed before it is scaled.</span><b>Prop firm lens</b><span>Use drawdown, losing streak, and daily loss behavior together with the portfolio rules in Settings.</span></div></Panel>
+    </div>}
+
+    {activeTab === 'Psychology' && <div className="grid two">
+      <Panel title="Emotion After Outcome"><ChartWrap empty={!psychologyRows.length}><SmartChart type="bar" data={psychologyChart} options={dualAxisOptions('money', 'percent')} /></ChartWrap><ReportTable rows={psychologyRows} focusDimension="emotionAfter" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
+      <Panel title="Discipline Review"><div className="table-wrap slim"><table><thead><tr><th>Emotion</th><th>Trades</th><th>Winrate</th><th>Avg Duration</th><th>Net</th></tr></thead><tbody>{psychologyRows.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtMinutes(row.avgDuration)}</td><td className={row.pnl >= 0 ? 'pos' : 'neg'}>{money(row.pnl)}</td></tr>)}</tbody></table></div></Panel>
+    </div>}
+
+    {activeTab === 'Custom' && <Panel title="Custom Analyzer"><div className="builder-controls"><Field label="Dimension"><select value={builderDimension} onChange={(e) => setBuilderDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Metric"><select value={builderMetric} onChange={(e) => setBuilderMetric(e.target.value)}>{metricOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Chart"><select value={chartType} onChange={(e) => setChartType(e.target.value)}><option value="bar">Vertical Bar</option><option value="horizontal">Horizontal Bar</option><option value="line">Line</option><option value="doughnut">Doughnut</option><option value="pie">Pie</option></select></Field></div><ChartWrap empty={!builderData.length}><BuilderChart data={builderData} metric={builderMetric} chartType={chartType} /></ChartWrap><ReportTable rows={builderData} focusDimension={builderDimension} setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} metric={builderMetric} /></Panel>}
+
+    <Panel title={focusValue ? `Trade Drilldown: ${focusValue}` : 'Recent Trade Drilldown'}><TradeDrilldown rows={focusRows} /></Panel>
   </section>;
+}
+
+function outcomePnlChart(rows) {
+  return {
+    labels: rows.map((row) => row.name),
+    datasets: [
+      { label: 'Wins', data: rows.map((row) => row.wins), backgroundColor: chartColors.winSoft, borderColor: chartColors.win, borderWidth: 1, borderRadius: 5, stack: 'outcome', valueKind: 'number', yAxisID: 'y' },
+      { label: 'Losses', data: rows.map((row) => row.losses), backgroundColor: chartColors.lossSoft, borderColor: chartColors.loss, borderWidth: 1, borderRadius: 5, stack: 'outcome', valueKind: 'number', yAxisID: 'y' },
+      { type: 'line', label: 'P&L', data: rows.map((row) => row.pnl), borderColor: chartColors.gold, backgroundColor: chartColors.gold, borderWidth: 2, tension: 0.35, pointRadius: 3, valueKind: 'money', yAxisID: 'y1' }
+    ]
+  };
+}
+
+function barLineChart(rows, barMetric, lineMetric, barLabel, lineLabel) {
+  return {
+    labels: rows.map((row) => row.name),
+    datasets: [
+      { label: barLabel, data: rows.map((row) => metricValue(row, barMetric)), backgroundColor: rows.map((row) => metricValue(row, barMetric) >= 0 ? chartColors.winSoft : chartColors.lossSoft), borderColor: rows.map((row) => metricValue(row, barMetric) >= 0 ? chartColors.win : chartColors.loss), borderWidth: 1, borderRadius: 5, valueKind: metricKind(barMetric), yAxisID: 'y' },
+      { type: 'line', label: lineLabel, data: rows.map((row) => metricValue(row, lineMetric)), borderColor: chartColors.gold, backgroundColor: chartColors.gold, borderWidth: 2, tension: 0.35, pointRadius: 3, valueKind: metricKind(lineMetric), yAxisID: 'y1' }
+    ]
+  };
+}
+
+function horizontalMetricChart(rows, metric, label, kind = 'number') {
+  return {
+    labels: rows.map((row) => row.name),
+    datasets: [{
+      label,
+      data: rows.map((row) => metricValue(row, metric)),
+      backgroundColor: rows.map((_, index) => `${chartPalette[index % chartPalette.length]}44`),
+      borderColor: rows.map((_, index) => chartPalette[index % chartPalette.length]),
+      borderWidth: 1,
+      borderRadius: 5,
+      valueKind: kind
+    }]
+  };
+}
+
+function dualAxisOptions(leftKind, rightKind) {
+  return makeOptions(leftKind, {
+    scales: {
+      y: { beginAtZero: true, grid: { color: chartColors.grid }, ticks: { color: chartColors.muted, callback: (value) => chartFormat(leftKind, value) } },
+      y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: chartColors.muted, callback: (value) => chartFormat(rightKind, value) } }
+    }
+  });
+}
+
+function Insight({ title, value, meta, tone = '' }) {
+  return <div className={`insight ${tone}`}>
+    <span>{title}</span>
+    <b>{value}</b>
+    <small>{meta}</small>
+  </div>;
+}
+
+function ReportTable({ rows, focusDimension, setFocusDimension, setFocusValue, metric = 'pnl' }) {
+  return <div className="table-wrap slim report-table"><table><thead><tr><th>Group</th><th>Trades</th><th>Winrate</th><th>Avg RR</th><th>Avg Tick</th><th>{metricOptions.find(([value]) => value === metric)?.[1] || 'Net'}</th><th></th></tr></thead><tbody>{rows.map((row) => {
+    const value = metricValue(row, metric);
+    const tone = metric === 'commissionAmount' ? 'neg' : value >= 0 ? 'pos' : 'neg';
+    return <tr key={row.name}><td><b>{row.name}</b><small>{row.wins}W / {row.losses}L</small></td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtR(row.avgRr)}</td><td>{row.avgTick.toFixed(1)}</td><td className={tone}>{metricLabel(metric, value)}</td><td><button onClick={() => { setFocusDimension(focusDimension); setFocusValue(row.name); }}>View</button></td></tr>;
+  })}</tbody></table></div>;
+}
+
+function TradeDrilldown({ rows }) {
+  return <div className="table-wrap analytics-drilldown"><table><thead><tr><th>Date</th><th>Asset</th><th>Session</th><th>Setup</th><th>LTF Entry</th><th>Grade</th><th>RR / Tick</th><th>Psychology</th><th>P&L</th></tr></thead><tbody>{rows.map((trade) => <tr key={trade.id || `${trade.date}-${trade.entryTime}-${trade.asset}`}><td>{trade.date}<small>{trade.entryTime || '-'} / {trade.durationTime || fmtMinutes(trade.durationMinutes)}</small></td><td>{trade.asset}</td><td>{trade.session}</td><td>{trade.mtfStructure || '-'}<small>{trade.htfBias || '-'} / {trade.htfPoi || '-'}</small></td><td>{trade.ltfEntry || '-'}<small>{trade.keyZone || '-'}</small></td><td><b>{trade.setupGrade || '-'}</b><small>{trade.setupScore || 0}/100</small></td><td>{fmtR(trade.actualR ?? trade.plannedR)}<small>Max {trade.maxTick ?? '-'} tick</small></td><td>{trade.emotionAfter || '-'}<small>{trade.ruleViolation || 'None'}</small></td><td className={trade.pnl >= 0 ? 'pos' : 'neg'}>{money(trade.pnl)}<small>Fee {money(trade.commissionAmount || 0)}</small></td></tr>)}</tbody></table></div>;
 }
 
 function summaryRows(trades, key, fixed = null) {
@@ -1424,7 +1529,7 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
       </div>
       <div className="profile-fields">
         <div className="form-grid compact"><Field label="Nickname"><input value={profile.nickname || ''} onChange={(e) => setProfile({ ...profile, nickname: e.target.value })} placeholder="Nick Name" /></Field><Field label="Show contact"><select value={profile.contactType || 'email'} onChange={(e) => setProfile({ ...profile, contactType: e.target.value })}>{Object.entries(profileContactLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field></div>
-        <div className="form-grid compact"><Field label="Phone"><input value={profile.phone || ''} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} placeholder="Phone number" /></Field><Field label="E-mail"><input type="email" value={profile.email || ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder={user?.email || 'name@email.com'} /></Field><Field label="Facebook"><input value={profile.facebook || ''} onChange={(e) => setProfile({ ...profile, facebook: e.target.value })} placeholder="Facebook" /></Field><Field label="Line"><input value={profile.line || ''} onChange={(e) => setProfile({ ...profile, line: e.target.value })} placeholder="Line ID" /></Field></div>
+        <div className="form-grid compact"><Field label="Phone"><input value={profile.phone || ''} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} placeholder="Phone number" /></Field><Field label="E-mail"><input type="email" value={profile.email || ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder={user?.email || 'name@email.com'} /></Field><Field label="Facebook"><input value={profile.facebook || ''} onChange={(e) => setProfile({ ...profile, facebook: e.target.value })} placeholder="Facebook" /></Field><Field label="ข้อความสถานะ"><input value={profile.line || ''} onChange={(e) => setProfile({ ...profile, line: e.target.value })} placeholder="ข้อความสถานะ" /></Field></div>
         <div className="profile-preview-line">Preview: <b>{profile.nickname || 'Nick Name'}</b><span>{profileContact(profile, user?.email) || profileContactLabels[profile.contactType || 'email']}</span></div>
         <div className="actions"><button className="primary" onClick={saveProfile}><Save size={16} />Save profile</button></div>
       </div>
