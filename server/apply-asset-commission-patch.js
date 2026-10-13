@@ -3,11 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const indexPath = fileURLToPath(new URL('./index.js', import.meta.url));
 let source = fs.readFileSync(indexPath, 'utf8');
-
-if (source.includes('SELECT id, symbol, tick_size "tickSize", dollar_per_point "dollarPerPoint", commission_amount "commissionAmount", sort_order "sortOrder" FROM asset_presets')) {
-  console.log('Asset commission API patch already applied');
-  process.exit(0);
-}
+let changed = false;
 
 const replacements = [
   [
@@ -76,12 +72,62 @@ const replacements = [
   ]
 ];
 
-for (const [from, to] of replacements) {
-  if (!source.includes(from)) {
-    throw new Error('Asset commission API patch could not find an expected server/index.js segment');
+if (!source.includes('SELECT id, symbol, tick_size "tickSize", dollar_per_point "dollarPerPoint", commission_amount "commissionAmount", sort_order "sortOrder" FROM asset_presets')) {
+  for (const [from, to] of replacements) {
+    if (!source.includes(from)) {
+      throw new Error('Asset commission API patch could not find an expected server/index.js segment');
+    }
+    source = source.replaceAll(from, to);
   }
-  source = source.replaceAll(from, to);
+  changed = true;
+  console.log('Applied asset commission API patch');
 }
 
-fs.writeFileSync(indexPath, source);
-console.log('Applied asset commission API patch');
+if (!source.includes('propFirmPortfolioTemplates')) {
+  source = source.replace(
+    `import './migrate.js';`,
+    `import './migrate.js';\nimport { legacyPortfolioTemplateKeys, propFirmPortfolioTemplates } from '../shared/portfolio-templates.js';`
+  );
+
+  source = source.replace(
+    /const defaultPortfolioTemplates = \[[\s\S]*?\n\];\n\nasync function ensureAccount/,
+    `const defaultPortfolioTemplates = [
+  { templateKey: 'custom', label: 'Custom / Manual', values: blankAccountTemplate },
+  ...propFirmPortfolioTemplates
+];
+
+async function ensureAccount`
+  );
+
+  source = source.replace(
+    /async function ensurePortfolioTemplates\(\) \{[\s\S]*?\n\}\n\nfunction templateForClient/,
+    `async function ensurePortfolioTemplates() {
+  for (const key of legacyPortfolioTemplateKeys) {
+    await run('DELETE FROM portfolio_templates WHERE template_key=?', [key]);
+  }
+  for (const [index, template] of defaultPortfolioTemplates.entries()) {
+    await run(
+      \`INSERT INTO portfolio_templates (template_key, label, values_json, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(template_key) DO UPDATE SET
+         label=excluded.label,
+         values_json=excluded.values_json,
+         sort_order=excluded.sort_order,
+         is_active=excluded.is_active,
+         updated_at=CURRENT_TIMESTAMP\`,
+      [template.templateKey, template.label, JSON.stringify({ ...blankAccountTemplate, ...template.values }), template.sortOrder || index + 1, boolValue(template.isActive !== false)]
+    );
+  }
+}
+
+function templateForClient`
+  );
+  changed = true;
+  console.log('Applied portfolio template library patch');
+}
+
+if (changed) {
+  fs.writeFileSync(indexPath, source);
+} else {
+  console.log('Startup API patches already applied');
+}
