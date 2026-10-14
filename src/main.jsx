@@ -4,7 +4,7 @@ import 'chart.js/auto';
 import { Chart as ReactChart } from 'react-chartjs-2';
 import {
   BarChart3, BookOpen, CalendarDays, Download, FileText, Filter, Gauge, History, Mail,
-  Eye, EyeOff, LayoutDashboard, LogOut, Plus, Save, Settings, Shield, SlidersHorizontal, Trash2, Upload, UserRound
+  Eye, EyeOff, LayoutDashboard, LogOut, Pencil, Plus, RotateCcw, Save, Settings, Shield, SlidersHorizontal, Trash2, Upload, UserRound, X
 } from 'lucide-react';
 import './styles.css';
 
@@ -327,6 +327,18 @@ const defaultOptions = {
   keyZone: ['Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM'],
   ruleViolation: ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price'],
   emotion: ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']
+};
+
+const defaultOptionLabels = {
+  session: 'Session',
+  mode: 'Mode',
+  htfBias: 'HTF Bias',
+  htfPoi: 'HTF POI',
+  mtfStructure: 'MTF',
+  ltfEntry: 'LTF Entry',
+  keyZone: 'Key Zone',
+  ruleViolation: 'Rule Violation',
+  emotion: 'Emotion'
 };
 
 const blankAccount = {
@@ -932,6 +944,7 @@ function App() {
   const [portfolioTemplates, setPortfolioTemplates] = useState(fallbackPortfolioTemplates);
   const [trades, setTrades] = useState([]);
   const [options, setOptions] = useState(defaultOptions);
+  const [optionLabels, setOptionLabels] = useState(defaultOptionLabels);
   const [assets, setAssets] = useState(defaultAssets);
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState('');
@@ -949,6 +962,7 @@ function App() {
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
     setOptions({ ...defaultOptions, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options])) });
+    setOptionLabels({ ...defaultOptionLabels, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.label || defaultOptionLabels[x.fieldKey] || x.fieldKey])) });
     if (active) {
       const data = await scopedApi(`/accounts/${active}/trades`);
       setTrades(data.trades);
@@ -1004,7 +1018,7 @@ function App() {
       {page === 'calendar' && <CalendarPage api={scopedApi} accountId={accountId} trades={trades} account={account} focusDate={calendarFocusDate} clearFocusDate={() => setCalendarFocusDate('')} setToast={setToast} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
       {page === 'journal' && <JournalPage api={scopedApi} accountId={accountId} />}
-      {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} portfolioTemplates={portfolioTemplates} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
+      {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} optionLabels={optionLabels} assets={assets} portfolioLimit={portfolioLimit} portfolioTemplates={portfolioTemplates} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
       {page === 'coach' && <CoachPage api={api} token={session?.token} currentUser={currentUser} viewUserId={viewUserId} setViewUserId={(id) => { setViewUserId(id); setPage('dashboard'); }} portfolioTemplates={portfolioTemplates} setPortfolioTemplates={setPortfolioTemplates} setToast={setToast} />}
     </main>
     {toast && <div className="toast">{toast}</div>}
@@ -1659,6 +1673,206 @@ function metricLabel(metric, value) {
   return value;
 }
 
+const microWeekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const microHours = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+const microComboDimensions = [
+  ['keyZone', 'Key Zone'],
+  ['session', 'Session'],
+  ['dayName', 'วัน'],
+  ['entryHour', 'เวลาเข้า'],
+  ['htfPoi', 'คุณภาพ OB'],
+  ['htfBias', 'HTF'],
+  ['mtfStructure', 'MTF'],
+  ['ltfEntry', 'LTF']
+];
+
+function decidedTrades(rows = []) {
+  return rows.filter((trade) => trade.result === 'win' || trade.result === 'loss' || trade.result === 'reversed');
+}
+
+function microCellTone(value, maxAbs) {
+  if (!value || !maxAbs) return {};
+  const strength = Math.min(0.48, 0.12 + (Math.abs(value) / maxAbs) * 0.36);
+  const color = value > 0 ? '46, 203, 112' : '229, 72, 77';
+  return {
+    background: `rgba(${color}, ${strength})`,
+    borderColor: `rgba(${color}, ${Math.min(0.72, strength + 0.18)})`
+  };
+}
+
+function buildMicroHeatmap(rows = []) {
+  const cells = new Map();
+  rows.forEach((trade) => {
+    const day = trade.dayName || 'Unspecified';
+    const hour = trade.entryHour || 'No time';
+    if (!microWeekdays.includes(day) || !microHours.includes(hour)) return;
+    const key = `${day}-${hour}`;
+    const current = cells.get(key) || { trades: 0, wins: 0, losses: 0, pnl: 0, rrSum: 0, rrCount: 0 };
+    current.trades += 1;
+    current.pnl += Number(trade.pnl || 0);
+    if (trade.result === 'win') current.wins += 1;
+    if (trade.result === 'loss' || trade.result === 'reversed') current.losses += 1;
+    const rr = Number(trade.actualR || trade.plannedR || 0);
+    if (Number.isFinite(rr)) {
+      current.rrSum += rr;
+      current.rrCount += 1;
+    }
+    cells.set(key, current);
+  });
+  const maxAbs = Math.max(0, ...[...cells.values()].map((cell) => Math.abs(cell.pnl)));
+  return { cells, maxAbs };
+}
+
+function microComboParts(trade, selected) {
+  return microComboDimensions
+    .filter(([key]) => selected[key])
+    .map(([key, label]) => {
+      const value = trade[key] || 'Unspecified';
+      return `${label}: ${value}`;
+    });
+}
+
+function buildMicroCombos(rows = [], selected = {}) {
+  const map = new Map();
+  rows.forEach((trade) => {
+    const parts = microComboParts(trade, selected);
+    if (!parts.length) return;
+    const name = parts.join(' | ');
+    const current = map.get(name) || { name, trades: 0, wins: 0, losses: 0, pnl: 0, avgRr: 0, rrSum: 0 };
+    current.trades += 1;
+    current.pnl += Number(trade.pnl || 0);
+    if (trade.result === 'win') current.wins += 1;
+    if (trade.result === 'loss' || trade.result === 'reversed') current.losses += 1;
+    current.rrSum += Number(trade.actualR || trade.plannedR || 0);
+    map.set(name, current);
+  });
+  return [...map.values()].map((row) => ({
+    ...row,
+    avgRr: row.trades ? row.rrSum / row.trades : 0,
+    winRate: row.wins + row.losses ? row.wins / (row.wins + row.losses) : 0
+  }));
+}
+
+function buildMicroRrRows(rows = [], includeWinRate = true, includeValue = true) {
+  const decided = decidedTrades(rows);
+  const winners = decided.filter((trade) => trade.result === 'win' && Number(trade.maxR || 0) > 0);
+  const avgRisk = decided.length
+    ? decided.reduce((sum, trade) => sum + (Number(trade.riskAmount || 0) || 50), 0) / decided.length
+    : 50;
+  const fixed = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20];
+  const levels = [...new Set([...fixed, ...winners.map((trade) => Number(trade.maxR || 0).toFixed(1)).map(Number)])]
+    .filter((level) => Number.isFinite(level) && level > 0)
+    .sort((a, b) => a - b);
+  return levels.map((level) => {
+    const pass = winners.filter((trade) => Number(trade.maxR || 0) >= level);
+    const hitRate = decided.length ? pass.length / decided.length : 0;
+    const assumedValue = (pass.length * level * avgRisk) - ((decided.length - pass.length) * avgRisk);
+    const score = (includeWinRate ? hitRate * 100 : 0) + (includeValue ? assumedValue / Math.max(avgRisk, 1) : 0) + level;
+    return { level, passCount: pass.length, hitRate, assumedValue, score };
+  }).filter((row) => row.passCount > 0).sort((a, b) => b.score - a.score).slice(0, 8);
+}
+
+function MicroAnalytics({ ledger }) {
+  const [comboFilter, setComboFilter] = useState({
+    keyZone: false,
+    session: false,
+    dayName: false,
+    entryHour: false,
+    htfPoi: false,
+    htfBias: false,
+    mtfStructure: false,
+    ltfEntry: true
+  });
+  const [includeWinRate, setIncludeWinRate] = useState(true);
+  const [includeValue, setIncludeValue] = useState(true);
+  const outcomes = useMemo(() => decidedTrades(ledger), [ledger]);
+  const heatmap = useMemo(() => buildMicroHeatmap(ledger), [ledger]);
+  const combos = useMemo(() => buildMicroCombos(outcomes, comboFilter), [outcomes, comboFilter]);
+  const bestCombos = useMemo(() => [...combos].filter((row) => row.wins > 0 && row.pnl >= 0).sort((a, b) => (b.winRate - a.winRate) || (b.pnl - a.pnl) || (b.trades - a.trades)).slice(0, 5), [combos]);
+  const worstCombos = useMemo(() => [...combos].filter((row) => row.losses > 0 || row.pnl < 0).sort((a, b) => (a.winRate - b.winRate) || (a.pnl - b.pnl) || (b.trades - a.trades)).slice(0, 5), [combos]);
+  const rrRows = useMemo(() => buildMicroRrRows(ledger, includeWinRate, includeValue), [ledger, includeWinRate, includeValue]);
+  const bestHour = useMemo(() => groupBy(ledger, 'entryHour').filter((row) => row.name !== 'No time').sort((a, b) => b.pnl - a.pnl)[0], [ledger]);
+  const bestDay = useMemo(() => groupBy(ledger, 'dayName').sort((a, b) => b.pnl - a.pnl)[0], [ledger]);
+  const bestRr = rrRows[0];
+
+  return <div className="micro-page">
+    <Header title="Micro Analytics" hint="สรุปข้อค้นพบอัตโนมัติ · Heatmap วัน×ชั่วโมง · คอมโบที่ชนะ/แพ้บ่อยที่สุด" />
+    <SectionLabel tone="gold">Insights</SectionLabel>
+    <Panel title="สรุปข้อค้นพบสำคัญ">
+      {outcomes.length < 5 ? <div className="compact-empty micro-empty">ยังมีข้อมูลไม่พอสำหรับวิเคราะห์เชิงลึก (ต้องมีไม้ที่ปิดผลแพ้/ชนะแล้วอย่างน้อย 5 ไม้)</div> : <div className="micro-insights">
+        <Insight title="ช่วงเวลาที่เด่น" value={bestHour?.name || '-'} meta={bestHour ? `${money(bestHour.pnl)} · ${pct(bestHour.winRate * 100)} · ${bestHour.trades} trades` : 'No time data'} tone="good" />
+        <Insight title="วันที่เด่น" value={bestDay?.name || '-'} meta={bestDay ? `${money(bestDay.pnl)} · ${fmtR(bestDay.avgRr)}` : 'No day data'} tone="good" />
+        <Insight title="Combo ที่ควรทำซ้ำ" value={bestCombos[0]?.name || '-'} meta={bestCombos[0] ? `${pct(bestCombos[0].winRate * 100)} · ${money(bestCombos[0].pnl)}` : 'เลือกเงื่อนไขเพื่อวิเคราะห์'} />
+        <Insight title="Combo ที่ต้องระวัง" value={worstCombos[0]?.name || '-'} meta={worstCombos[0] ? `${pct(worstCombos[0].winRate * 100)} · ${money(worstCombos[0].pnl)}` : 'ยังไม่มีข้อมูล'} tone={worstCombos[0] ? 'bad' : ''} />
+        <Insight title="RR ขั้นต่ำที่น่าสนใจ" value={bestRr ? fmtR(bestRr.level) : '-'} meta={bestRr ? `${pct(bestRr.hitRate * 100)} hit · ${money(bestRr.assumedValue)}` : 'ต้องกรอก Max RR'} tone={bestRr ? 'good' : ''} />
+      </div>}
+    </Panel>
+
+    <SectionLabel>Heatmap วัน × ชั่วโมง</SectionLabel>
+    <Panel title="Win Rate / กำไรขาดทุน ตามวันและชั่วโมง">
+      <p className="micro-note">เขียว = กำไรสุทธิ, แดง = ขาดทุนสุทธิ, เลขในช่อง = จำนวนไม้</p>
+      <div className="micro-heatmap-shell">
+        <div className="micro-heatmap">
+          <div className="micro-heatmap-corner" />
+          {microWeekdays.map((day) => <div className="micro-heatmap-head" key={day}>{day}</div>)}
+          {microHours.map((hour) => <React.Fragment key={hour}>
+            <div className="micro-hour">{hour}</div>
+            {microWeekdays.map((day) => {
+              const cell = heatmap.cells.get(`${day}-${hour}`);
+              const winRate = cell?.wins + cell?.losses ? cell.wins / (cell.wins + cell.losses) : 0;
+              return <div className={`micro-cell ${cell?.trades ? 'has-data' : ''}`} key={`${day}-${hour}`} style={microCellTone(cell?.pnl || 0, heatmap.maxAbs)} title={cell?.trades ? `${day} ${hour}: ${cell.trades} trades, ${money(cell.pnl)}, ${pct(winRate * 100)}` : `${day} ${hour}`}>
+                {cell?.trades ? <><b>{cell.trades}</b><span>{money(cell.pnl)}</span><small>{pct(winRate * 100)}</small></> : null}
+              </div>;
+            })}
+          </React.Fragment>)}
+        </div>
+      </div>
+    </Panel>
+
+    <SectionLabel>Top 5 คอมโบที่ชนะ/แพ้บ่อยที่สุด</SectionLabel>
+    <p className="micro-desc">เลือกเงื่อนไขที่ใช้จับคู่ด้านล่าง ระบบจะรวมไม้ที่ตรงกันเป็นคอมโบเดียว เพื่อดูว่าชุดเงื่อนไขไหนควรทำซ้ำและชุดไหนควรลดหรือเลี่ยง</p>
+    <Panel title="เลือกเงื่อนไขที่ใช้จับคอมโบ">
+      <div className="micro-checks">
+        {microComboDimensions.map(([key, label]) => <label key={key}>
+          <input type="checkbox" checked={!!comboFilter[key]} onChange={(event) => setComboFilter({ ...comboFilter, [key]: event.target.checked })} />
+          <span>{label}</span>
+        </label>)}
+      </div>
+    </Panel>
+    <div className="grid two micro-combo-grid">
+      <Panel title="TOP 5 คอมโบที่ชนะบ่อยที่สุด"><ComboList rows={bestCombos} tone="good" /></Panel>
+      <Panel title="TOP 5 คอมโบที่แพ้บ่อยที่สุด"><ComboList rows={worstCombos} tone="bad" /></Panel>
+    </div>
+
+    <SectionLabel>RR ขั้นต่ำที่ควรตั้ง (จากไม้ที่ชนะ)</SectionLabel>
+    <Panel title="แนะนำ RR ขั้นต่ำจากสถิติไม้ที่ชนะจริง">
+      <p className="micro-note">เทียบ Max RR ของไม้ที่ชนะแต่ละระดับ ว่าถ้าตั้งเป้า TP ไว้ที่ RR นี้จะมีจำนวนไม้ที่เข้าเงื่อนไขและมูลค่าสมมติเท่าไร</p>
+      <div className="micro-checks rr-controls">
+        <label><input type="checkbox" checked={includeWinRate} onChange={(event) => setIncludeWinRate(event.target.checked)} /><span>รวม Win Rate ในการให้คะแนน</span></label>
+        <label><input type="checkbox" checked={includeValue} onChange={(event) => setIncludeValue(event.target.checked)} /><span>รวมมูลค่าเงินที่ชนะในการให้คะแนน</span></label>
+      </div>
+      <div className="table-wrap slim rr-table"><table><thead><tr><th>RR ≥</th><th>ไม้ที่ผ่านเกณฑ์</th><th>Win Rate</th><th>มูลค่ารวม (สมมติ)</th><th>คะแนน</th></tr></thead><tbody>{rrRows.length ? rrRows.map((row, index) => <tr key={row.level} className={index === 0 ? 'selected' : ''}><td>{fmtR(row.level)}</td><td>{row.passCount}</td><td>{pct(row.hitRate * 100)}</td><td className={row.assumedValue >= 0 ? 'pos' : 'neg'}>{money(row.assumedValue)}</td><td>{row.score.toFixed(1)}</td></tr>) : <tr><td colSpan="5">ไม้ที่ชนะยังไม่มีการกรอกค่า Max RR ต้องมีข้อมูลนี้ก่อนจึงจะวิเคราะห์ได้</td></tr>}</tbody></table></div>
+    </Panel>
+  </div>;
+}
+
+function SectionLabel({ children, tone = '' }) {
+  return <div className={`section-label ${tone}`}>{children}</div>;
+}
+
+function ComboList({ rows, tone }) {
+  if (!rows.length) return <div className="compact-empty">เลือกเงื่อนไขหรือเพิ่มข้อมูลเทรดให้พอสำหรับจัดอันดับคอมโบ</div>;
+  return <div className={`combo-list ${tone}`}>
+    {rows.map((row, index) => <div className="combo-row" key={row.name}>
+      <span>#{index + 1}</span>
+      <b>{row.name}</b>
+      <small>{money(row.pnl)}</small>
+      <strong>{row.trades} ไม้</strong>
+      <em>Win Rate = {pct(row.winRate * 100)}</em>
+    </div>)}
+  </div>;
+}
+
 function BuilderChart({ data, metric, chartType }) {
   const rows = data.map((row) => ({ ...row, value: metricValue(row, metric) }));
   const valueKind = metricKind(metric);
@@ -1699,7 +1913,7 @@ function BuilderChart({ data, metric, chartType }) {
 }
 
 function AnalyticsPage({ trades, stats, account }) {
-  const reportTabs = ['Overview', 'Time', 'Setup', 'Risk', 'Psychology', 'Custom'];
+  const reportTabs = ['Overview', 'Time', 'Setup', 'Risk', 'Psychology', 'Micro', 'Custom'];
   const [activeTab, setActiveTab] = useState('Overview');
   const [dimension, setDimension] = useState('htfBias');
   const [builderDimension, setBuilderDimension] = useState('entryHour');
@@ -1750,14 +1964,14 @@ function AnalyticsPage({ trades, stats, account }) {
   return <section>
     <Header title="Analytics" hint="Find your edge by structure, time, psychology, and RR behavior" />
     <div className="report-tabs">{reportTabs.map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
-    <div className="kpi-grid analytics-kpis"><Kpi label="Trades" value={stats.total} /><Kpi label="Win / Loss / Miss" value={`${stats.wins} / ${stats.losses} / ${stats.miss}`} /><Kpi label="Avg Duration" value={fmtMinutes(stats.avgDuration)} /><Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} /><Kpi label="Best Time" value={bestTime?.name || '-'} /><Kpi label="Best RR Hypothesis" value={money(stats.bestRr?.value || 0)} /></div>
-    <div className="insight-strip">
+    {activeTab !== 'Micro' && <div className="kpi-grid analytics-kpis"><Kpi label="Trades" value={stats.total} /><Kpi label="Win / Loss / Miss" value={`${stats.wins} / ${stats.losses} / ${stats.miss}`} /><Kpi label="Avg Duration" value={fmtMinutes(stats.avgDuration)} /><Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} /><Kpi label="Best Time" value={bestTime?.name || '-'} /><Kpi label="Best RR Hypothesis" value={money(stats.bestRr?.value || 0)} /></div>}
+    {activeTab !== 'Micro' && <div className="insight-strip">
       <Insight title="Repeat" value={bestSetup?.name || '-'} meta={bestSetup ? `${money(bestSetup.pnl)} / ${pct(bestSetup.winRate * 100)}` : 'No setup data'} tone="good" />
       <Insight title="Reduce" value={worstSetup?.name || '-'} meta={worstSetup ? `${money(worstSetup.pnl)} / ${worstSetup.trades} trades` : 'No setup data'} tone="bad" />
       <Insight title="Golden Hour" value={bestTime?.name || '-'} meta={bestTime ? `${money(bestTime.pnl)} / ${fmtR(bestTime.avgRr)}` : 'No time data'} />
       <Insight title="Leak" value={costlyViolation?.name || 'None'} meta={costlyViolation ? `${money(costlyViolation.pnl)} rule cost` : 'No violations logged'} tone={costlyViolation ? 'bad' : 'good'} />
       <Insight title="Mindset" value={bestEmotion?.name || '-'} meta={bestEmotion ? `${money(bestEmotion.pnl)} / ${pct(bestEmotion.winRate * 100)}` : 'No psychology data'} />
-    </div>
+    </div>}
 
     {activeTab === 'Overview' && <>
       <Panel title="Performance Breakdown"><div className="toolbar"><select value={dimension} onChange={(e) => setDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><ChartWrap empty={!data.length}><SmartChart type="bar" data={breakdownChart} options={makeOptions('number', { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, grid: { color: chartColors.grid }, ticks: { color: chartColors.muted } }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: chartColors.muted, callback: (value) => money(value) } } } })} /></ChartWrap><ReportTable rows={data} focusDimension={dimension} setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
@@ -1803,9 +2017,11 @@ function AnalyticsPage({ trades, stats, account }) {
       <Panel title="Discipline Review"><div className="table-wrap slim"><table><thead><tr><th>Emotion</th><th>Trades</th><th>Winrate</th><th>Avg Duration</th><th>Net</th></tr></thead><tbody>{psychologyRows.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtMinutes(row.avgDuration)}</td><td className={row.pnl >= 0 ? 'pos' : 'neg'}>{money(row.pnl)}</td></tr>)}</tbody></table></div></Panel>
     </div>}
 
+    {activeTab === 'Micro' && <MicroAnalytics ledger={ledger} />}
+
     {activeTab === 'Custom' && <Panel title="Custom Analyzer"><div className="builder-controls"><Field label="Dimension"><select value={builderDimension} onChange={(e) => setBuilderDimension(e.target.value)}>{dimensionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Metric"><select value={builderMetric} onChange={(e) => setBuilderMetric(e.target.value)}>{metricOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Chart"><select value={chartType} onChange={(e) => setChartType(e.target.value)}><option value="bar">Vertical Bar</option><option value="horizontal">Horizontal Bar</option><option value="line">Line</option><option value="doughnut">Doughnut</option><option value="pie">Pie</option></select></Field></div><ChartWrap empty={!builderData.length}><BuilderChart data={builderData} metric={builderMetric} chartType={chartType} /></ChartWrap><ReportTable rows={builderData} focusDimension={builderDimension} setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} metric={builderMetric} /></Panel>}
 
-    <Panel title={focusValue ? `Trade Drilldown: ${focusValue}` : 'Recent Trade Drilldown'}><TradeDrilldown rows={focusRows} /></Panel>
+    {activeTab !== 'Micro' && <Panel title={focusValue ? `Trade Drilldown: ${focusValue}` : 'Recent Trade Drilldown'}><TradeDrilldown rows={focusRows} /></Panel>}
   </section>;
 }
 
@@ -2079,17 +2295,20 @@ function JournalPage({ api, accountId }) {
   </section>;
 }
 
-function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, portfolioTemplates, user, setCurrentUser, reload, setToast }) {
+function SettingsPage({ api, accounts, account, options, optionLabels, assets, portfolioLimit, portfolioTemplates, user, setCurrentUser, reload, setToast }) {
   const [accountDraft, setAccountDraft] = useState(accountDraftFrom(account));
   const [templateId, setTemplateId] = useState('custom');
   const [optionDrafts, setOptionDrafts] = useState({});
+  const [optionLabelDrafts, setOptionLabelDrafts] = useState({});
+  const [optionInputs, setOptionInputs] = useState({});
   const [assetDrafts, setAssetDrafts] = useState([]);
   const [savingOption, setSavingOption] = useState('');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [visiblePasswords, setVisiblePasswords] = useState({ currentPassword: false, newPassword: false, confirmPassword: false });
   const [profile, setProfile] = useState(user?.profile || {});
   useEffect(() => setAccountDraft(accountDraftFrom(account)), [account?.id]);
-  useEffect(() => setOptionDrafts(Object.fromEntries(Object.entries(options).map(([key, vals]) => [key, vals.join('\n')]))), [options]);
+  useEffect(() => setOptionDrafts(Object.fromEntries(Object.entries(options).map(([key, vals]) => [key, vals]))), [options]);
+  useEffect(() => setOptionLabelDrafts({ ...defaultOptionLabels, ...optionLabels }), [optionLabels]);
   useEffect(() => setAssetDrafts(assets.map((asset) => ({ ...asset }))), [assets]);
   useEffect(() => setProfile(user?.profile || {}), [user?.id, user?.profile]);
   function setAccountField(key, value) {
@@ -2157,11 +2376,11 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
       event.target.value = '';
     }
   }
-  async function saveOption(key) {
-    const values = [...new Set(String(optionDrafts[key] || '').split('\n').map((value) => value.trim()).filter(Boolean))];
+  async function saveOption(key, nextValues = optionDrafts[key], nextLabel = optionLabelDrafts[key]) {
+    const values = [...new Set((Array.isArray(nextValues) ? nextValues : []).map((value) => String(value).trim()).filter(Boolean))];
     setSavingOption(key);
     try {
-      await api(`/options/${key}`, { method: 'PUT', body: JSON.stringify({ label: key, options: values }) });
+      await api(`/options/${key}`, { method: 'PUT', body: JSON.stringify({ label: nextLabel || defaultOptionLabels[key] || key, options: values }) });
       await reload(account.id);
       setToast('Options saved');
     } catch (error) {
@@ -2169,6 +2388,42 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     } finally {
       setSavingOption('');
     }
+  }
+  async function addOptionValue(key) {
+    const value = String(optionInputs[key] || '').trim();
+    if (!value) return;
+    const current = optionDrafts[key] || [];
+    if (current.map((item) => item.toLowerCase()).includes(value.toLowerCase())) {
+      setToast('Option already exists');
+      return;
+    }
+    const next = [...current, value];
+    setOptionDrafts({ ...optionDrafts, [key]: next });
+    setOptionInputs({ ...optionInputs, [key]: '' });
+    await saveOption(key, next);
+  }
+  async function removeOptionValue(key, value) {
+    const next = (optionDrafts[key] || []).filter((item) => item !== value);
+    setOptionDrafts({ ...optionDrafts, [key]: next });
+    await saveOption(key, next);
+  }
+  async function resetOptionValues(key) {
+    const next = defaultOptions[key] || [];
+    setOptionDrafts({ ...optionDrafts, [key]: next });
+    await saveOption(key, next);
+  }
+  async function renameOptionLabel(key) {
+    const current = optionLabelDrafts[key] || defaultOptionLabels[key] || key;
+    const next = prompt('ชื่อหัวข้อ', current);
+    if (next === null) return;
+    const label = next.trim() || current;
+    setOptionLabelDrafts({ ...optionLabelDrafts, [key]: label });
+    await saveOption(key, optionDrafts[key], label);
+  }
+  async function resetOptionLabel(key) {
+    const label = defaultOptionLabels[key] || key;
+    setOptionLabelDrafts({ ...optionLabelDrafts, [key]: label });
+    await saveOption(key, optionDrafts[key], label);
   }
   async function saveAsset(asset) {
     if (asset.id) await api(`/assets/${asset.id}`, { method: 'PUT', body: JSON.stringify(asset) });
@@ -2208,7 +2463,23 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
     <DataTransferPanel api={api} accounts={accounts} account={account} reload={reload} setToast={setToast} /></div>
-    <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)} disabled={savingOption === key}><Save size={14} />{savingOption === key ? 'Saving...' : `Save ${key}`}</button></div>)}</div></Panel></section>;
+    <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, values]) => <div className="option-card" key={key}>
+      <div className="option-card-head">
+        <h3>{optionLabelDrafts[key] || defaultOptionLabels[key] || key}</h3>
+        <button onClick={() => renameOptionLabel(key)} disabled={savingOption === key}><Pencil size={14} />เปลี่ยนชื่อ</button>
+      </div>
+      <div className="option-chip-grid">
+        {(values || []).map((value) => <span className="option-chip" key={value}><b>{value}</b><button aria-label={`Remove ${value}`} title={`Remove ${value}`} onClick={() => removeOptionValue(key, value)} disabled={savingOption === key}><X size={15} /></button></span>)}
+      </div>
+      <div className="option-add-row">
+        <input value={optionInputs[key] || ''} onChange={(e) => setOptionInputs({ ...optionInputs, [key]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addOptionValue(key); }} placeholder="เพิ่มตัวเลือกใหม่" />
+        <button onClick={() => addOptionValue(key)} disabled={savingOption === key || !String(optionInputs[key] || '').trim()}><Plus size={15} />Add</button>
+      </div>
+      <div className="option-reset-row">
+        <button onClick={() => resetOptionValues(key)} disabled={savingOption === key}><RotateCcw size={14} />Reset to Default</button>
+        <button onClick={() => resetOptionLabel(key)} disabled={savingOption === key}><RotateCcw size={14} />Reset ชื่อหัวข้อ</button>
+      </div>
+    </div>)}</div></Panel></section>;
 }
 
 function DataTransferPanel({ api, accounts, account, reload, setToast }) {
