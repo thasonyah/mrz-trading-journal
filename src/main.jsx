@@ -91,7 +91,10 @@ function chartFormat(kind, value) {
 }
 
 function dateKey(date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function startOfWeek(dateString) {
@@ -113,7 +116,73 @@ function shortDate(dateString) {
 }
 
 function weekLabel(weekStart) {
-  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 6))}`;
+  return `${shortDate(weekStart)} - ${shortDate(addDays(weekStart, 4))}`;
+}
+
+function marketWeekDates(weekStart) {
+  return Array.from({ length: 5 }, (_, index) => addDays(weekStart, index));
+}
+
+function monthKey(dateString = today()) {
+  return dateString.slice(0, 7);
+}
+
+function addMonths(monthString, amount) {
+  const date = new Date(`${monthString}-01T00:00:00`);
+  date.setMonth(date.getMonth() + amount);
+  return dateKey(date).slice(0, 7);
+}
+
+function monthTitle(monthString) {
+  const date = new Date(`${monthString}-01T00:00:00`);
+  return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+}
+
+function calendarCells(monthString) {
+  const first = new Date(`${monthString}-01T00:00:00`);
+  const day = first.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const start = new Date(first);
+  start.setDate(first.getDate() + mondayOffset);
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return dateKey(date);
+  });
+}
+
+function summarizeDay(rows = [], date = '') {
+  const wins = rows.filter((row) => row.result === 'win').length;
+  const losses = rows.filter((row) => ['loss', 'reversed'].includes(row.result)).length;
+  const misses = rows.filter((row) => ['miss', 'breakeven'].includes(row.result)).length;
+  const pnl = rows.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
+  const sl = rows.reduce((sum, trade) => sum + ((trade.result === 'loss' || trade.result === 'reversed') ? Number(trade.slAmount || 0) : 0), 0);
+  const commission = rows.reduce((sum, trade) => sum + Number(trade.commissionAmount || 0), 0);
+  const rrRows = rows.filter((trade) => Number.isFinite(Number(trade.actualR ?? trade.plannedR)));
+  return {
+    date,
+    label: shortDate(date),
+    rows,
+    trades: rows.length,
+    wins,
+    losses,
+    misses,
+    pnl,
+    sl,
+    commission,
+    avgRr: rrRows.length ? rrRows.reduce((sum, trade) => sum + Number(trade.actualR ?? trade.plannedR), 0) / rrRows.length : 0
+  };
+}
+
+function dailyReviewHasContent(review = {}) {
+  return ['summary', 'repeat', 'reduce', 'nextPlan'].some((key) => String(review[key] || '').trim());
+}
+
+function dayTone(summary) {
+  if (!summary?.trades) return '';
+  if (summary.pnl > 0) return 'win';
+  if (summary.pnl < 0) return 'loss';
+  return 'be';
 }
 
 function chartOptions(kind = 'number') {
@@ -210,15 +279,6 @@ function dailyResultChart(rows = []) {
         valueKind: 'money'
       },
       {
-        label: 'SL',
-        data: rows.map((row) => -Math.abs(Number(row.sl || 0))),
-        backgroundColor: chartColors.lossSoft,
-        borderColor: chartColors.loss,
-        borderWidth: 1,
-        borderRadius: 5,
-        valueKind: 'money'
-      },
-      {
         label: 'Commission',
         data: rows.map((row) => -Math.abs(Number(row.commission || 0))),
         backgroundColor: chartColors.goldSoft,
@@ -226,9 +286,27 @@ function dailyResultChart(rows = []) {
         borderWidth: 1,
         borderRadius: 5,
         valueKind: 'money'
+      },
+      {
+        label: 'SL',
+        data: rows.map((row) => -Math.abs(Number(row.sl || 0))),
+        backgroundColor: chartColors.lossSoft,
+        borderColor: chartColors.loss,
+        borderWidth: 1,
+        borderRadius: 5,
+        valueKind: 'money'
       }
     ]
   };
+}
+
+function dailyResultOptions() {
+  return makeOptions('money', {
+    scales: {
+      x: { stacked: true },
+      y: { stacked: true }
+    }
+  });
 }
 
 const defaultAssets = [
@@ -600,6 +678,134 @@ function computeStats(trades, accountOrBalance = 50000) {
   };
 }
 
+function rulePercent(used, limit) {
+  const max = Number(limit || 0);
+  if (!max) return 0;
+  return Math.min(100, Math.max(0, (Math.abs(Number(used || 0)) / max) * 100));
+}
+
+function ruleTone(percent, reverse = false) {
+  if (reverse) {
+    if (percent >= 90) return 'good';
+    if (percent >= 65) return 'watch';
+    return 'bad';
+  }
+  if (percent >= 85) return 'bad';
+  if (percent >= 60) return 'watch';
+  return 'good';
+}
+
+function computePropRules(trades, accountOrBalance = 50000) {
+  const account = typeof accountOrBalance === 'object' ? accountOrBalance : null;
+  const startingBalance = startingBalanceOf(accountOrBalance);
+  const rows = computeLedger(trades, accountOrBalance);
+  const net = rows.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
+  const balance = startingBalance + net;
+  const profitTarget = Number(account?.profitTarget || 0);
+  const dailyLossLimit = Number(account?.dailyLossLimit || 0);
+  const maxDrawdown = Number(account?.maxDrawdown || account?.trailingDrawdown || 0);
+  const maxContracts = Number(account?.maxContracts || 0);
+  const latestDate = rows.reduce((latest, trade) => trade.date && (!latest || trade.date > latest) ? trade.date : latest, '');
+  const latestRows = latestDate ? rows.filter((trade) => trade.date === latestDate) : [];
+  const dayNet = latestRows.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
+  const dayLossUsed = Math.max(0, -dayNet);
+  const peakBalance = rows.reduce((peak, trade) => Math.max(peak, Number(trade.balanceAfter || startingBalance)), startingBalance);
+  const drawdownUsed = Math.max(0, peakBalance - balance);
+  const largestLot = rows.reduce((max, trade) => Math.max(max, Number(trade.lotSize || 0)), 0);
+  const targetProgress = profitTarget ? Math.max(0, Math.min(100, (net / profitTarget) * 100)) : 0;
+  const dailyLossPct = rulePercent(dayLossUsed, dailyLossLimit);
+  const drawdownPct = rulePercent(drawdownUsed, maxDrawdown);
+  const contractPct = rulePercent(largestLot, maxContracts);
+  const checks = [
+    {
+      label: 'Profit Target',
+      value: profitTarget ? `${money(net)} / ${money(profitTarget)}` : 'Not set',
+      percent: targetProgress,
+      tone: profitTarget ? ruleTone(targetProgress, true) : 'neutral',
+      enabled: !!profitTarget
+    },
+    {
+      label: latestDate ? `Daily Loss ${shortDate(latestDate)}` : 'Daily Loss',
+      value: dailyLossLimit ? `${money(dayLossUsed)} / ${money(dailyLossLimit)}` : 'Not set',
+      percent: dailyLossPct,
+      tone: dailyLossLimit ? ruleTone(dailyLossPct) : 'neutral',
+      enabled: !!dailyLossLimit
+    },
+    {
+      label: account?.trailingDrawdown ? 'Trailing DD' : 'Max Drawdown',
+      value: maxDrawdown ? `${money(drawdownUsed)} / ${money(maxDrawdown)}` : 'Not set',
+      percent: drawdownPct,
+      tone: maxDrawdown ? ruleTone(drawdownPct) : 'neutral',
+      enabled: !!maxDrawdown
+    },
+    {
+      label: 'Max Contracts',
+      value: maxContracts ? `${largestLot.toFixed(2)} / ${maxContracts}` : 'Not set',
+      percent: contractPct,
+      tone: maxContracts ? ruleTone(contractPct) : 'neutral',
+      enabled: !!maxContracts
+    }
+  ];
+  const alertCount = checks.filter((check) => check.tone === 'bad').length;
+  const watchCount = checks.filter((check) => check.tone === 'watch').length;
+  const activeCount = checks.filter((check) => check.enabled).length;
+  return {
+    balance,
+    net,
+    latestDate,
+    dayNet,
+    peakBalance,
+    drawdownUsed,
+    checks,
+    status: !activeCount ? 'Setup needed' : alertCount ? 'Alert' : watchCount ? 'Watch' : 'Healthy',
+    tone: !activeCount ? 'neutral' : alertCount ? 'bad' : watchCount ? 'watch' : 'good'
+  };
+}
+
+function computeRuleMonitor(trades, accountOrBalance = 50000) {
+  const account = typeof accountOrBalance === 'object' ? accountOrBalance : null;
+  const startingBalance = startingBalanceOf(accountOrBalance);
+  const dailyLossLimit = Number(account?.dailyLossLimit || 0);
+  const drawdownLimit = Number(account?.maxDrawdown || account?.trailingDrawdown || 0);
+  const rows = computeLedger(trades, accountOrBalance);
+  const dates = [...new Set(rows.map((trade) => trade.date).filter(Boolean))].sort();
+  let peakBalance = startingBalance;
+  const days = dates.map((date) => {
+    const dayRows = rows.filter((trade) => trade.date === date);
+    const pnl = dayRows.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
+    const lossUsed = Math.max(0, -pnl);
+    const endBalance = Number(dayRows[dayRows.length - 1]?.balanceAfter || startingBalance);
+    peakBalance = Math.max(peakBalance, ...dayRows.map((trade) => Number(trade.balanceAfter || startingBalance)), endBalance);
+    const drawdownUsed = Math.max(0, peakBalance - endBalance);
+    const dailyPct = rulePercent(lossUsed, dailyLossLimit);
+    const drawdownPct = rulePercent(drawdownUsed, drawdownLimit);
+    const tone = dailyPct >= 85 || drawdownPct >= 85 ? 'bad' : dailyPct >= 60 || drawdownPct >= 60 ? 'watch' : 'good';
+    return {
+      date,
+      trades: dayRows.length,
+      pnl,
+      commission: dayRows.reduce((sum, trade) => sum + Number(trade.commissionAmount || 0), 0),
+      lossUsed,
+      dailyLossBuffer: dailyLossLimit ? Math.max(0, dailyLossLimit - lossUsed) : 0,
+      dailyPct,
+      drawdownUsed,
+      drawdownBuffer: drawdownLimit ? Math.max(0, drawdownLimit - drawdownUsed) : 0,
+      drawdownPct,
+      dailyLossActive: !!dailyLossLimit,
+      drawdownActive: !!drawdownLimit,
+      endBalance,
+      tone
+    };
+  });
+  return {
+    days,
+    latest: days[days.length - 1] || null,
+    dangerDays: days.filter((day) => day.tone === 'bad').length,
+    watchDays: days.filter((day) => day.tone === 'watch').length,
+    hasRules: !!(dailyLossLimit || drawdownLimit)
+  };
+}
+
 function groupBy(trades, key) {
   const map = new Map();
   const boolFields = new Set(['poiHasFvg', 'liquiditySweep', 'bos', 'choch']);
@@ -729,6 +935,7 @@ function App() {
   const [assets, setAssets] = useState(defaultAssets);
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState('');
+  const [calendarFocusDate, setCalendarFocusDate] = useState('');
 
   const scopedUserId = currentUser?.role === 'admin' && viewUserId ? viewUserId : null;
   const scopedApi = useMemo(() => (path, options = {}) => api(withUser(path, scopedUserId), options), [api, scopedUserId]);
@@ -791,10 +998,10 @@ function App() {
       </div>
     </aside>
     <main className="workspace">
-      {page === 'dashboard' && <Dashboard trades={trades} stats={stats} account={account} setPage={setPage} />}
-      {page === 'log' && <TradeForm api={scopedApi} accountId={accountId} account={account} options={options} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
+      {page === 'dashboard' && <Dashboard api={scopedApi} accountId={accountId} trades={trades} stats={stats} account={account} openCalendar={(date = '') => { setCalendarFocusDate(date); setPage('calendar'); }} setPage={setPage} />}
+      {page === 'log' && <TradeForm api={scopedApi} accountId={accountId} account={account} trades={trades} options={options} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
       {page === 'history' && <HistoryPage api={scopedApi} accountId={accountId} account={account} trades={trades} setTrades={setTrades} setEditing={(t) => { setEditing(t); setPage('log'); }} setToast={setToast} />}
-      {page === 'calendar' && <CalendarPage trades={trades} account={account} />}
+      {page === 'calendar' && <CalendarPage api={scopedApi} accountId={accountId} trades={trades} account={account} focusDate={calendarFocusDate} clearFocusDate={() => setCalendarFocusDate('')} setToast={setToast} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
       {page === 'journal' && <JournalPage api={scopedApi} accountId={accountId} />}
       {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} assets={assets} portfolioLimit={portfolioLimit} portfolioTemplates={portfolioTemplates} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
@@ -817,9 +1024,22 @@ function ProfileCard({ user }) {
   </div>;
 }
 
-function Dashboard({ trades, stats, account, setPage }) {
+function Dashboard({ api, accountId, trades, stats, account, openCalendar, setPage }) {
   const [selectedWeek, setSelectedWeek] = useState('');
+  const [dailyReviews, setDailyReviews] = useState({});
   const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
+  const propRules = useMemo(() => computePropRules(trades, account || 50000), [trades, account]);
+  useEffect(() => {
+    if (!accountId) return;
+    api(`/accounts/${accountId}/daily-reviews`)
+      .then((data) => setDailyReviews(data.reviews || {}))
+      .catch(() => setDailyReviews({}));
+  }, [accountId, api]);
+  const latestReviews = useMemo(() => Object.entries(dailyReviews)
+    .filter(([, review]) => dailyReviewHasContent(review))
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 4)
+    .map(([date, review]) => ({ date, review })), [dailyReviews]);
   const daily = useMemo(() => {
     const map = new Map();
     ledger.sort((a, b) => a.date.localeCompare(b.date)).forEach((t) => map.set(t.date, (map.get(t.date) || 0) + Number(t.pnl || 0)));
@@ -836,8 +1056,7 @@ function Dashboard({ trades, stats, account, setPage }) {
   const activeWeek = selectedWeek || dashboardWeeks[dashboardWeeks.length - 1] || '';
   const weekDaily = useMemo(() => {
     if (!activeWeek) return [];
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = addDays(activeWeek, index);
+    return marketWeekDates(activeWeek).map((date) => {
       const rows = ledger.filter((trade) => trade.date === date);
       return {
         date,
@@ -920,6 +1139,7 @@ function Dashboard({ trades, stats, account, setPage }) {
       <Kpi label="Asia RR / Tick" value={`${fmtR(stats.asiaAvgRr)} / ${Number(stats.asiaAvgTick || 0).toFixed(1)}`} />
       <Kpi label="Top LTF Entry" value={stats.topLtfEntry?.name || '-'} />
     </div>
+    <PropFirmRulesPanel account={account} rules={propRules} setPage={setPage} />
     <div className="grid two">
       <Panel title="Equity Curve">
         <ChartWrap empty={!daily.length}><SmartChart type="line" data={equityChart} options={makeOptions('money')} /></ChartWrap>
@@ -931,7 +1151,7 @@ function Dashboard({ trades, stats, account, setPage }) {
             {dashboardWeeks.map((week) => <option key={week} value={week}>{weekLabel(week)}</option>)}
           </select>
         </div>
-        <ChartWrap empty={!dashboardWeeks.length} tall><SmartChart type="bar" data={dashboardDailyChart} options={makeOptions('money')} /></ChartWrap>
+        <ChartWrap empty={!dashboardWeeks.length} tall><SmartChart type="bar" data={dashboardDailyChart} options={dailyResultOptions()} /></ChartWrap>
       </Panel>
     </div>
     <div className="grid two dashboard-lower">
@@ -944,14 +1164,68 @@ function Dashboard({ trades, stats, account, setPage }) {
           <ChartWrap empty={!ltfRows.length}><SmartChart type="bar" data={ltfReceiveChart} options={makeOptions('number', { indexAxis: 'y', plugins: { legend: { display: false } } })} /></ChartWrap>
         </div>
       </Panel>
+      <Panel title="Latest Review Notes">
+        <LatestReviewNotes rows={latestReviews} onOpenCalendar={openCalendar} />
+      </Panel>
     </div>
   </section>;
 }
 
-function TradeForm({ api, accountId, account, options, assets, editing, setEditing, reload, setToast }) {
+function LatestReviewNotes({ rows, onOpenCalendar }) {
+  if (!rows.length) return <div className="review-empty">
+    <b>No daily reviews yet</b>
+    <span>Save reviews from Calendar to keep your newest lessons on the Dashboard.</span>
+    <button onClick={() => onOpenCalendar()}><CalendarDays size={15} />Open Calendar</button>
+  </div>;
+  return <div className="latest-reviews">
+    {rows.map(({ date, review }) => <button type="button" key={date} onClick={() => onOpenCalendar(date)}>
+      <span className="review-date">{shortDate(date)}</span>
+      <span><b>{review.summary || review.nextPlan || 'Daily review'}</b><small>Repeat: {review.repeat || '-'}</small></span>
+      <em>{review.reduce ? `Reduce: ${review.reduce}` : 'No leak noted'}</em>
+    </button>)}
+  </div>;
+}
+
+function PropFirmRulesPanel({ account, rules, setPage }) {
+  const hasRules = ['profitTarget', 'dailyLossLimit', 'maxDrawdown', 'trailingDrawdown', 'maxContracts'].some((key) => Number(account?.[key] || 0) > 0);
+  return <Panel title="Prop Firm Rules">
+    <div className="rule-control">
+      <div className={`rule-status ${rules.tone}`}>
+        <Gauge size={20} />
+        <div>
+          <span>{rules.status}</span>
+          <b>{money(rules.balance)}</b>
+          <small>{account?.provider || 'Custom'} {account?.planName ? `· ${account.planName}` : ''}</small>
+        </div>
+      </div>
+      <div className="rule-check-grid">
+        {rules.checks.map((check) => <div className={`rule-check ${check.tone}`} key={check.label}>
+          <div className="rule-check-head"><span>{check.label}</span><b>{check.value}</b></div>
+          <div className="rule-meter"><i style={{ width: `${check.percent}%` }} /></div>
+          <small>{check.value === 'Not set' ? 'Set this in Settings' : `${check.percent.toFixed(0)}% used`}</small>
+        </div>)}
+      </div>
+      <div className="rule-notes">
+        <b>{hasRules ? 'Portfolio rules are active' : 'No prop-firm limits yet'}</b>
+        <span>{hasRules ? 'Use this before adding size: target progress must rise while daily loss, drawdown, and contracts stay controlled.' : 'Add target, drawdown, daily loss, and max contracts in Settings to turn this into a live rule monitor.'}</span>
+        <button onClick={() => setPage('settings')}><SlidersHorizontal size={15} />Edit rules</button>
+      </div>
+    </div>
+  </Panel>;
+}
+
+function TradeForm({ api, accountId, account, trades, options, assets, editing, setEditing, reload, setToast }) {
   const [form, setForm] = useState(editing || blankTrade);
   useEffect(() => setForm(editing || blankTrade), [editing]);
   const calc = enrichTrade(form, account);
+  const projectedRules = useMemo(() => {
+    const nextTrade = { ...form, id: editing?.id };
+    const projectedTrades = editing
+      ? trades.map((trade) => trade.id === editing.id ? nextTrade : trade)
+      : [...trades, nextTrade];
+    return computePropRules(projectedTrades, account || 50000);
+  }, [form, editing, trades, account]);
+  const activeRuleChecks = projectedRules.checks.filter((check) => check.enabled);
   const commissionInputValue = form.result === 'miss'
     ? 0
     : (form.commissionAmount !== '' && form.commissionAmount != null ? form.commissionAmount : (calc.commissionAmount || ''));
@@ -1010,6 +1284,16 @@ function TradeForm({ api, accountId, account, options, assets, editing, setEditi
           <Kpi label="Commission" value={money(calc.commissionAmount)} />
           <Kpi label="Net P&L" value={money(calc.netPnl)} tone={calc.netPnl >= 0 ? 'good' : 'bad'} />
           <Kpi label="SL$ / TP$" value={`${money(calc.slAmount)} / ${money(calc.tpAmount)}`} />
+        </div>
+        <div className={`trade-rule-preview ${projectedRules.tone}`}>
+          <div>
+            <span>After save</span>
+            <b>{projectedRules.status}</b>
+            <small>Projected balance {money(projectedRules.balance)}</small>
+          </div>
+          <div className="trade-rule-list">
+            {activeRuleChecks.length ? activeRuleChecks.map((check) => <span className={check.tone} key={check.label}>{check.label}: <b>{check.value}</b></span>) : <span>No portfolio rules set yet. Add prop-firm limits in Settings.</span>}
+          </div>
         </div>
       </Panel>
       <Panel title="Trade Information">
@@ -1101,21 +1385,224 @@ function ChartLinks({ trade }) {
   return <table className="chart-link-table"><thead><tr>{links.map(([label]) => <th key={label}>{label}</th>)}</tr></thead><tbody><tr>{links.map(([label, url]) => <td key={label}>{url ? <a href={url} target="_blank" rel="noreferrer">↗</a> : <span>-</span>}</td>)}</tr></tbody></table>;
 }
 
-function CalendarPage({ trades, account }) {
+function CalendarPage({ api, accountId, trades, account, focusDate, clearFocusDate, setToast }) {
+  const [visibleMonth, setVisibleMonth] = useState(() => monthKey(trades.find((trade) => trade.date)?.date || today()));
+  const [selectedWeek, setSelectedWeek] = useState('');
+  const [selectedDay, setSelectedDay] = useState('');
+  const [dailyReviews, setDailyReviews] = useState({});
   const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
-  const dailyResults = useMemo(() => {
+  useEffect(() => {
+    if (!accountId) return;
+    api(`/accounts/${accountId}/daily-reviews`)
+      .then((data) => setDailyReviews(data.reviews || {}))
+      .catch(() => setDailyReviews({}));
+  }, [accountId, api]);
+  useEffect(() => {
+    if (!focusDate) return;
+    setVisibleMonth(monthKey(focusDate));
+    setSelectedWeek(startOfWeek(focusDate));
+    setSelectedDay(focusDate);
+    clearFocusDate?.();
+  }, [focusDate, clearFocusDate]);
+  async function saveDailyReview(date, review) {
+    const data = await api(`/accounts/${accountId}/daily-reviews/${date}`, { method: 'PUT', body: JSON.stringify(review) });
+    setDailyReviews((current) => ({ ...current, [date]: data.review }));
+    setToast('Daily review saved');
+  }
+  const dayMap = useMemo(() => {
     const map = new Map();
     ledger.forEach((trade) => {
-      const current = map.get(trade.date) || { date: trade.date, label: shortDate(trade.date), pnl: 0, sl: 0, commission: 0 };
-      current.pnl += Number(trade.pnl || 0);
-      current.sl += trade.result === 'loss' || trade.result === 'reversed' ? Number(trade.slAmount || 0) : 0;
-      current.commission += Number(trade.commissionAmount || 0);
-      map.set(trade.date, current);
+      if (!trade.date) return;
+      map.set(trade.date, [...(map.get(trade.date) || []), trade]);
     });
-    return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+    return map;
   }, [ledger]);
-  const dayChart = dailyResultChart(dailyResults);
-  return <section><Header title="Calendar" hint="Daily P&L heatmap and activity" /><Panel title="Daily Results"><ChartWrap empty={!dailyResults.length} tall><SmartChart type="bar" data={dayChart} options={makeOptions('money')} /></ChartWrap></Panel></section>;
+  const monthDays = useMemo(() => calendarCells(visibleMonth), [visibleMonth]);
+  const summaries = useMemo(() => new Map(monthDays.map((date) => [date, summarizeDay(dayMap.get(date) || [], date)])), [monthDays, dayMap]);
+  const monthSummaries = useMemo(() => [...summaries.values()].filter((day) => day.date.startsWith(visibleMonth)), [summaries, visibleMonth]);
+  const monthStats = useMemo(() => {
+    const traded = monthSummaries.filter((day) => day.trades);
+    return {
+      pnl: traded.reduce((sum, day) => sum + day.pnl, 0),
+      commission: traded.reduce((sum, day) => sum + day.commission, 0),
+      trades: traded.reduce((sum, day) => sum + day.trades, 0),
+      winDays: traded.filter((day) => day.pnl > 0).length,
+      lossDays: traded.filter((day) => day.pnl < 0).length,
+      beDays: traded.filter((day) => day.pnl === 0).length,
+      avgRr: traded.length ? traded.reduce((sum, day) => sum + day.avgRr, 0) / traded.length : 0
+    };
+  }, [monthSummaries]);
+  const weekOptions = useMemo(() => [...new Set(monthSummaries.map((day) => startOfWeek(day.date)))].sort(), [monthSummaries]);
+  const preferredWeek = useMemo(() => {
+    const tradedWeeks = monthSummaries.filter((day) => day.trades).map((day) => startOfWeek(day.date));
+    return tradedWeeks.length ? tradedWeeks[tradedWeeks.length - 1] : weekOptions[0];
+  }, [monthSummaries, weekOptions]);
+  useEffect(() => {
+    if (!weekOptions.length) setSelectedWeek('');
+    else if (!selectedWeek || !weekOptions.includes(selectedWeek)) setSelectedWeek(preferredWeek);
+  }, [weekOptions, selectedWeek, preferredWeek]);
+  const activeWeek = selectedWeek || preferredWeek || '';
+  const weekDaily = useMemo(() => activeWeek ? marketWeekDates(activeWeek).map((date) => summarizeDay(dayMap.get(date) || [], date)) : [], [activeWeek, dayMap]);
+  const selectedSummary = selectedDay ? summarizeDay(dayMap.get(selectedDay) || [], selectedDay) : null;
+  const reviewRows = useMemo(() => Object.entries(dailyReviews)
+    .filter(([date, review]) => date.startsWith(visibleMonth) && review && ['summary', 'repeat', 'reduce', 'nextPlan'].some((key) => String(review[key] || '').trim()))
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, review]) => ({ date, review, summary: summarizeDay(dayMap.get(date) || [], date) })), [dailyReviews, visibleMonth, dayMap]);
+  const dayChart = dailyResultChart(weekDaily);
+  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  return <section>
+    <Header title="Calendar" hint="Month review, trading days, and daily order detail" />
+    <div className="calendar-layout">
+      <Panel title="Calendar Filters">
+        <div className="calendar-mini-stats">
+          <div><span>Month Net</span><b className={monthStats.pnl >= 0 ? 'pos' : 'neg'}>{money(monthStats.pnl)}</b></div>
+          <div><span>Trades</span><b>{monthStats.trades}</b></div>
+          <div><span>Win Days</span><b>{monthStats.winDays}</b></div>
+          <div><span>Loss Days</span><b>{monthStats.lossDays}</b></div>
+          <div><span>Commission</span><b>{money(monthStats.commission)}</b></div>
+          <div><span>Avg RR</span><b>{fmtR(monthStats.avgRr)}</b></div>
+        </div>
+        <div className="calendar-legend">
+          <span><i className="win-dot" />Winning day</span>
+          <span><i className="loss-dot" />Losing day</span>
+          <span><i className="gold-dot" />Miss / BE / commission</span>
+          <span><i className="blue-dot" />Trade details</span>
+        </div>
+      </Panel>
+      <Panel title="Month Review">
+        <div className="calendar-toolbar">
+          <div><h2>{monthTitle(visibleMonth)}</h2><span>{monthStats.winDays}W / {monthStats.lossDays}L / {monthStats.beDays}BE days</span></div>
+          <div className="calendar-actions">
+            <button onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))}>‹</button>
+            <button onClick={() => setVisibleMonth(monthKey(today()))}>Today</button>
+            <button onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))}>›</button>
+          </div>
+        </div>
+        <div className="calendar-weekdays">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
+        <div className="month-grid">
+          {monthDays.map((date) => {
+            const summary = summaries.get(date);
+            const tone = dayTone(summary);
+            const rows = summary.rows || [];
+            return <button
+              key={date}
+              type="button"
+              className={`month-cell ${date.startsWith(visibleMonth) ? '' : 'muted'} ${date === today() ? 'today' : ''} ${rows.length ? 'has-trades' : ''}`}
+              onClick={() => rows.length && setSelectedDay(date)}
+            >
+              <span className="date-number">{new Date(`${date}T00:00:00`).getDate()}</span>
+              <span className="day-pills">
+                {rows.slice(0, 3).map((trade, index) => <span key={trade.id || `${date}-${index}`} className={`trade-pill ${trade.result || tone}`}>{trade.asset || 'Trade'} · {trade.ltfEntry || trade.setupGrade || trade.result}</span>)}
+                {rows.length > 3 && <span className="trade-pill more">+{rows.length - 3} more</span>}
+                {dailyReviews[date] && <span className="trade-pill review">Review saved</span>}
+              </span>
+              <span className="day-summary">
+                <b className={summary.pnl >= 0 ? 'pos' : 'neg'}>{rows.length ? money(summary.pnl) : '-'}</b>
+                <small>{rows.length ? `${summary.trades} trades` : 'No trades'}</small>
+              </span>
+            </button>;
+          })}
+        </div>
+      </Panel>
+    </div>
+    <Panel title="Daily Results">
+      <div className="panel-toolbar">
+        <span>{activeWeek ? `Week ${weekLabel(activeWeek)}` : 'No week selected'}</span>
+        <select value={activeWeek} onChange={(e) => setSelectedWeek(e.target.value)} disabled={!weekOptions.length}>
+          {weekOptions.map((week) => <option key={week} value={week}>{weekLabel(week)}</option>)}
+        </select>
+      </div>
+      <ChartWrap empty={!weekDaily.some((day) => day.trades)} tall><SmartChart type="bar" data={dayChart} options={dailyResultOptions()} /></ChartWrap>
+    </Panel>
+    <Panel title="Daily Review Log">
+      <DailyReviewLog rows={reviewRows} onOpen={(date) => setSelectedDay(date)} />
+    </Panel>
+    {selectedSummary?.trades > 0 && <CalendarLightbox summary={selectedSummary} review={dailyReviews[selectedSummary.date] || {}} onSaveReview={saveDailyReview} onClose={() => setSelectedDay('')} />}
+  </section>;
+}
+
+function DailyReviewLog({ rows, onOpen }) {
+  if (!rows.length) return <div className="compact-empty">No daily reviews saved for this month yet.</div>;
+  return <div className="review-log">
+    {rows.map(({ date, review, summary }) => <button key={date} type="button" onClick={() => onOpen(date)}>
+      <span className="review-log-date"><b>{shortDate(date)}</b><small>{summary.trades} trades · {money(summary.pnl)}</small></span>
+      <span><b>Repeat</b><small>{review.repeat || '-'}</small></span>
+      <span><b>Reduce</b><small>{review.reduce || '-'}</small></span>
+      <span><b>Next</b><small>{review.nextPlan || review.summary || '-'}</small></span>
+    </button>)}
+  </div>;
+}
+
+function CalendarLightbox({ summary, review, onSaveReview, onClose }) {
+  const [draft, setDraft] = useState({ summary: '', repeat: '', reduce: '', nextPlan: '', ...(review || {}) });
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setDraft({ summary: '', repeat: '', reduce: '', nextPlan: '', ...(review || {}) });
+  }, [summary.date, review]);
+  async function saveReview() {
+    setSaving(true);
+    try {
+      await onSaveReview(summary.date, draft);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return <div className="lightbox-backdrop" onClick={onClose}>
+    <div className="trade-lightbox" onClick={(event) => event.stopPropagation()}>
+      <button className="lightbox-close" onClick={onClose} aria-label="Close">×</button>
+      <div className="lightbox-head">
+        <div>
+          <h2>Orders — {summary.date}</h2>
+          <p>
+            <em className="pos">{summary.wins}W</em>
+            <em className="neg">{summary.losses}L</em>
+            <em>{summary.misses}M</em>
+            <em>{summary.trades} trades</em>
+            <em>P&L: <b className={summary.pnl >= 0 ? 'pos' : 'neg'}>{money(summary.pnl)}</b></em>
+          </p>
+        </div>
+        <div className="lightbox-totals">
+          <span>Commission {money(summary.commission)}</span>
+          <span>SL {money(summary.sl)}</span>
+          <span>Avg RR {fmtR(summary.avgRr)}</span>
+        </div>
+      </div>
+      <div className="order-list">
+        <div className="daily-review-card">
+          <div className="daily-review-head">
+            <div><b>Daily Review</b><span>Keep the lesson close to the trades it came from.</span></div>
+            <button onClick={saveReview} disabled={saving}><Save size={15} />{saving ? 'Saving...' : 'Save review'}</button>
+          </div>
+          <div className="daily-review-grid">
+            <label>Summary<textarea value={draft.summary || ''} onChange={(e) => setDraft({ ...draft, summary: e.target.value })} placeholder="What happened today?" /></label>
+            <label>Repeat<textarea value={draft.repeat || ''} onChange={(e) => setDraft({ ...draft, repeat: e.target.value })} placeholder="What should be repeated?" /></label>
+            <label>Reduce<textarea value={draft.reduce || ''} onChange={(e) => setDraft({ ...draft, reduce: e.target.value })} placeholder="What leaked or broke rules?" /></label>
+            <label>Next Plan<textarea value={draft.nextPlan || ''} onChange={(e) => setDraft({ ...draft, nextPlan: e.target.value })} placeholder="What is the next session plan?" /></label>
+          </div>
+        </div>
+        {summary.rows.map((trade, index) => <div className="order-card" key={trade.id || `${summary.date}-${index}`}>
+          <div className="order-top">
+            <span className="order-index">{index + 1}</span>
+            <div><h3>{trade.ltfEntry || trade.mtfStructure || trade.setupGrade || 'Trade setup'}</h3><p>{trade.asset} · {trade.session} · {trade.entryTime || '-'}{trade.exitTime ? ` - ${trade.exitTime}` : ''}</p></div>
+            <span className={`result-badge ${trade.result || ''}`}>{trade.result || '-'}</span>
+          </div>
+          <div className="order-metrics">
+            <div><span>RR</span><b>{fmtR(trade.actualR ?? trade.plannedR)}</b></div>
+            <div><span>P&L</span><b className={trade.pnl >= 0 ? 'pos' : 'neg'}>{money(trade.pnl)}</b></div>
+            <div><span>Max Tick</span><b>{trade.maxTick ?? '-'}</b></div>
+            <div><span>Duration</span><b>{trade.durationTime || fmtMinutes(trade.durationMinutes)}</b></div>
+            <div><span>Rule</span><b>{trade.ruleViolation || 'None'}</b></div>
+            <div><span>Emotion</span><b>{trade.emotionAfter || '-'}</b></div>
+          </div>
+          <div className="order-notes">
+            <span>{trade.notes || 'No daily note yet'}</span>
+            {(trade.chartLtf || trade.chartMtf || trade.chartHtf || trade.pictureUrl) && <a href={trade.chartLtf || trade.chartMtf || trade.chartHtf || trade.pictureUrl} target="_blank" rel="noreferrer">TradingView ↗</a>}
+          </div>
+        </div>)}
+      </div>
+    </div>
+  </div>;
 }
 
 const dimensionOptions = [
@@ -1257,6 +1744,9 @@ function AnalyticsPage({ trades, stats, account }) {
   const dayRows = summaryRows(ledger, 'dayName', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
   const weekRows = summaryRows(ledger, 'weekNumber');
   const monthRows = summaryRows(ledger, 'monthNumber', Array.from({ length: 12 }, (_, i) => i + 1));
+  const ruleMonitor = useMemo(() => computeRuleMonitor(trades, account || 50000), [trades, account]);
+  const ruleChartRows = ruleMonitor.days.slice(-12);
+  const ruleChart = ruleBufferChart(ruleChartRows);
   return <section>
     <Header title="Analytics" hint="Find your edge by structure, time, psychology, and RR behavior" />
     <div className="report-tabs">{reportTabs.map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
@@ -1291,6 +1781,17 @@ function AnalyticsPage({ trades, stats, account }) {
     </div>}
 
     {activeTab === 'Risk' && <div className="grid two">
+      <Panel title="Prop Firm Rule Monitor">
+        <div className="rule-monitor-head">
+          <Insight title="Latest Day" value={ruleMonitor.latest ? shortDate(ruleMonitor.latest.date) : '-'} meta={ruleMonitor.latest ? `${money(ruleMonitor.latest.pnl)} / ${ruleMonitor.latest.trades} trades` : 'No trades yet'} tone={ruleMonitor.latest?.tone || ''} />
+          <Insight title="Watch Days" value={ruleMonitor.watchDays} meta="60%+ limit usage" tone={ruleMonitor.watchDays ? 'watch' : 'good'} />
+          <Insight title="Alert Days" value={ruleMonitor.dangerDays} meta="85%+ limit usage" tone={ruleMonitor.dangerDays ? 'bad' : 'good'} />
+        </div>
+        <ChartWrap empty={!ruleChartRows.length || !ruleMonitor.hasRules}><SmartChart type="bar" data={ruleChart} options={makeOptions('money')} /></ChartWrap>
+      </Panel>
+      <Panel title="Daily Rule Ledger">
+        <RuleMonitorTable rows={ruleMonitor.days.slice(-10).reverse()} hasRules={ruleMonitor.hasRules} />
+      </Panel>
       <Panel title="Rule Violation Cost"><ChartWrap empty={!ledger.length}><SmartChart type="bar" data={riskChart} options={dualAxisOptions('money', 'number')} /></ChartWrap><ReportTable rows={violationRows.length ? violationRows : groupBy(ledger, 'ruleViolation')} focusDimension="ruleViolation" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
       <Panel title="Commission Load"><ChartWrap empty={!ledger.length}><SmartChart type="bar" data={commissionChart} options={dualAxisOptions('money', 'money')} /></ChartWrap><ReportTable rows={groupBy(ledger, 'asset')} focusDimension="asset" setFocusDimension={setFocusDimension} setFocusValue={setFocusValue} /></Panel>
       <Panel title="RR Recommendation"><div className="table-wrap slim"><table><thead><tr><th>RR</th><th>Qualifying wins</th><th>Win Rate</th><th>Hypothetical value</th></tr></thead><tbody>{stats.rrRows.map((r) => <tr key={r.level} className={r.level === stats.bestRr?.level ? 'selected' : ''}><td>{fmtR(r.level)}</td><td>{r.count}</td><td>{pct(r.winRate * 100)}</td><td>{money(r.value)}</td></tr>)}</tbody></table></div></Panel>
@@ -1344,6 +1845,36 @@ function horizontalMetricChart(rows, metric, label, kind = 'number') {
   };
 }
 
+function ruleBufferChart(rows) {
+  return {
+    labels: rows.map((row) => shortDate(row.date)),
+    datasets: [
+      {
+        label: 'Daily loss used',
+        data: rows.map((row) => row.lossUsed),
+        backgroundColor: rows.map((row) => row.tone === 'bad' ? chartColors.lossSoft : row.tone === 'watch' ? chartColors.goldSoft : chartColors.tealSoft),
+        borderColor: rows.map((row) => row.tone === 'bad' ? chartColors.loss : row.tone === 'watch' ? chartColors.gold : chartColors.teal),
+        borderWidth: 1,
+        borderRadius: 5,
+        valueKind: 'money',
+        yAxisID: 'y'
+      },
+      {
+        type: 'line',
+        label: 'Drawdown used',
+        data: rows.map((row) => row.drawdownUsed),
+        borderColor: chartColors.loss,
+        backgroundColor: chartColors.loss,
+        borderWidth: 2,
+        tension: 0.35,
+        pointRadius: 3,
+        valueKind: 'money',
+        yAxisID: 'y'
+      }
+    ]
+  };
+}
+
 function dualAxisOptions(leftKind, rightKind) {
   return makeOptions(leftKind, {
     scales: {
@@ -1373,6 +1904,15 @@ function TradeDrilldown({ rows }) {
   return <div className="table-wrap analytics-drilldown"><table><thead><tr><th>Date</th><th>Asset</th><th>Session</th><th>Setup</th><th>LTF Entry</th><th>Grade</th><th>RR / Tick</th><th>Psychology</th><th>P&L</th></tr></thead><tbody>{rows.map((trade) => <tr key={trade.id || `${trade.date}-${trade.entryTime}-${trade.asset}`}><td>{trade.date}<small>{trade.entryTime || '-'} / {trade.durationTime || fmtMinutes(trade.durationMinutes)}</small></td><td>{trade.asset}</td><td>{trade.session}</td><td>{trade.mtfStructure || '-'}<small>{trade.htfBias || '-'} / {trade.htfPoi || '-'}</small></td><td>{trade.ltfEntry || '-'}<small>{trade.keyZone || '-'}</small></td><td><b>{trade.setupGrade || '-'}</b><small>{trade.setupScore || 0}/100</small></td><td>{fmtR(trade.actualR ?? trade.plannedR)}<small>Max {trade.maxTick ?? '-'} tick</small></td><td>{trade.emotionAfter || '-'}<small>{trade.ruleViolation || 'None'}</small></td><td className={trade.pnl >= 0 ? 'pos' : 'neg'}>{money(trade.pnl)}<small>Fee {money(trade.commissionAmount || 0)}</small></td></tr>)}</tbody></table></div>;
 }
 
+function RuleMonitorTable({ rows, hasRules }) {
+  if (!hasRules) return <div className="compact-empty">Set Daily Loss and Drawdown in Settings to activate prop-firm rule monitoring.</div>;
+  return <div className="table-wrap slim rule-ledger"><table><thead><tr><th>Date</th><th>Trades</th><th>Net</th><th>Daily Loss</th><th>DD Used</th><th>Buffer</th></tr></thead><tbody>{rows.map((row) => {
+    const buffers = [row.dailyLossActive ? row.dailyLossBuffer : null, row.drawdownActive ? row.drawdownBuffer : null].filter((value) => value !== null);
+    const buffer = buffers.length ? Math.min(...buffers) : null;
+    return <tr key={row.date} className={row.tone === 'bad' ? 'invalid' : row.tone === 'watch' ? 'watch-row' : ''}><td><b>{row.date}</b><small>{row.tone}</small></td><td>{row.trades}</td><td className={row.pnl >= 0 ? 'pos' : 'neg'}>{money(row.pnl)}</td><td>{row.dailyLossActive ? money(row.lossUsed) : '-'}<small>{row.dailyLossActive ? `${row.dailyPct.toFixed(0)}%` : 'not set'}</small></td><td>{row.drawdownActive ? money(row.drawdownUsed) : '-'}<small>{row.drawdownActive ? `${row.drawdownPct.toFixed(0)}%` : 'not set'}</small></td><td>{buffer === null ? '-' : money(buffer)}</td></tr>;
+  })}</tbody></table></div>;
+}
+
 function summaryRows(trades, key, fixed = null) {
   const keys = fixed || [...new Set(trades.map((t) => t[key]).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
   return keys.map((name) => {
@@ -1398,15 +1938,145 @@ function SummaryTable({ title, rows }) {
   return <Panel title={title}><div className="table-wrap slim"><table><thead><tr><th>Name</th><th>Count</th><th>W/L/M</th><th>Winrate</th><th>$</th></tr></thead><tbody>{rows.map((r) => <tr key={r.name}><td>{r.name}</td><td>{r.count}</td><td>{r.wins}/{r.losses}/{r.miss}</td><td>{pct(r.winRate * 100)}</td><td className={r.tp - r.sl >= 0 ? 'pos' : 'neg'}>{money(r.tp - r.sl)}</td></tr>)}</tbody></table></div></Panel>;
 }
 
+const defaultPlaybookSetups = [
+  {
+    id: 'ob-fvg-sweep',
+    name: 'OB + FVG Sweep',
+    gradeTarget: 'A',
+    market: 'NQ / MNQ',
+    entryModel: 'HTF POI -> LQ Sweep -> CHoCH/BOS -> LTF OB+FVG',
+    conditions: [
+      { label: 'HTF bias aligns with trade direction', weight: 20, checked: true },
+      { label: 'Price is inside valid HTF POI / OB', weight: 15, checked: true },
+      { label: 'Liquidity sweep before entry', weight: 15, checked: true },
+      { label: 'LTF OB + FVG receives price cleanly', weight: 20, checked: true },
+      { label: 'BOS or CHoCH confirms displacement', weight: 20, checked: true },
+      { label: 'Entry is inside planned session window', weight: 10, checked: true }
+    ],
+    invalidation: 'POI is mitigated without reaction, no displacement, or entry chases outside plan.',
+    management: 'Take partials at planned RR, track Max RR / Max Tick, and journal any rule break immediately.',
+    notes: 'Core continuation/reversal setup for edge testing.'
+  }
+];
+
+function setupScore(setup) {
+  const conditions = setup?.conditions || [];
+  const total = conditions.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+  const score = conditions.reduce((sum, item) => sum + (item.checked ? Number(item.weight || 0) : 0), 0);
+  return total ? Math.round((score / total) * 100) : 0;
+}
+
+function gradeForScore(score) {
+  if (score >= 90) return 'A+';
+  if (score >= 75) return 'A';
+  if (score >= 60) return 'B';
+  return 'C';
+}
+
+function blankPlaybookSetup() {
+  return {
+    id: `setup-${Date.now()}`,
+    name: 'New Setup',
+    gradeTarget: 'A',
+    market: 'NQ1',
+    entryModel: 'Define POI, confirmation, trigger, and invalidation.',
+    conditions: [
+      { label: 'HTF bias is clear', weight: 20, checked: false },
+      { label: 'POI is valid', weight: 20, checked: false },
+      { label: 'Entry trigger is confirmed', weight: 20, checked: false },
+      { label: 'Risk and target are planned', weight: 20, checked: false },
+      { label: 'No rule violation before entry', weight: 20, checked: false }
+    ],
+    invalidation: '',
+    management: '',
+    notes: ''
+  };
+}
+
 function JournalPage({ api, accountId }) {
   const [content, setContent] = useState('');
   const [saved, setSaved] = useState('');
-  useEffect(() => { if (accountId) api(`/accounts/${accountId}/note`).then((d) => setContent(d.note.content || '')); }, [accountId]);
+  const [setups, setSetups] = useState(defaultPlaybookSetups);
+  const [activeId, setActiveId] = useState(defaultPlaybookSetups[0].id);
+  const activeSetup = setups.find((setup) => setup.id === activeId) || setups[0];
+  const activeScore = setupScore(activeSetup);
+  useEffect(() => {
+    if (!accountId) return;
+    Promise.all([
+      api(`/accounts/${accountId}/note`),
+      api(`/accounts/${accountId}/playbook-setups`)
+    ]).then(([note, setupData]) => {
+      setContent(note.note.content || '');
+      const rows = setupData.setups?.length ? setupData.setups : defaultPlaybookSetups;
+      setSetups(rows);
+      setActiveId(rows[0]?.id || defaultPlaybookSetups[0].id);
+    });
+  }, [accountId]);
   async function save() {
-    await api(`/accounts/${accountId}/note`, { method: 'PUT', body: JSON.stringify({ content }) });
+    await Promise.all([
+      api(`/accounts/${accountId}/note`, { method: 'PUT', body: JSON.stringify({ content }) }),
+      api(`/accounts/${accountId}/playbook-setups`, { method: 'PUT', body: JSON.stringify({ setups }) })
+    ]);
     setSaved(new Date().toLocaleTimeString());
   }
-  return <section><Header title="Playbook" hint={saved ? `Saved ${saved}` : 'Account logic, rules, and review notes'} action={<button className="primary" onClick={save}><Save size={16} />Save note</button>} /><textarea className="playbook" value={content} onChange={(e) => setContent(e.target.value)} /></section>;
+  function updateSetup(key, value) {
+    setSetups(setups.map((setup) => setup.id === activeSetup.id ? { ...setup, [key]: value } : setup));
+  }
+  function updateCondition(index, key, value) {
+    updateSetup('conditions', activeSetup.conditions.map((item, i) => i === index ? { ...item, [key]: value } : item));
+  }
+  function addSetup() {
+    const setup = blankPlaybookSetup();
+    setSetups([...setups, setup]);
+    setActiveId(setup.id);
+  }
+  function deleteSetup() {
+    if (setups.length <= 1) return;
+    const next = setups.filter((setup) => setup.id !== activeSetup.id);
+    setSetups(next);
+    setActiveId(next[0].id);
+  }
+  return <section>
+    <Header title="Playbook" hint={saved ? `Saved ${saved}` : 'Setup templates, scoring rules, and review notes'} action={<button className="primary" onClick={save}><Save size={16} />Save playbook</button>} />
+    <div className="playbook-layout">
+      <Panel title="Setup Library">
+        <div className="setup-list">
+          {setups.map((setup) => <button key={setup.id} className={setup.id === activeSetup.id ? 'selected' : ''} onClick={() => setActiveId(setup.id)}><b>{setup.name}</b><span>{setup.market || 'Any market'} · target {setup.gradeTarget}</span></button>)}
+          <button onClick={addSetup}><Plus size={15} />New setup</button>
+        </div>
+      </Panel>
+      <Panel title="Setup Checklist">
+        {activeSetup && <div className="setup-editor">
+          <div className="setup-headline">
+            <div><h2>{activeSetup.name}</h2><span>{activeSetup.entryModel}</span></div>
+            <div className="setup-score"><b>{activeScore}</b><small>{gradeForScore(activeScore)}</small></div>
+          </div>
+          <div className="form-grid compact">
+            <Field label="Setup name"><input value={activeSetup.name} onChange={(e) => updateSetup('name', e.target.value)} /></Field>
+            <Field label="Market / Asset"><input value={activeSetup.market || ''} onChange={(e) => updateSetup('market', e.target.value)} /></Field>
+            <Field label="Target grade"><select value={activeSetup.gradeTarget || 'A'} onChange={(e) => updateSetup('gradeTarget', e.target.value)}><option>A+</option><option>A</option><option>B</option><option>C</option></select></Field>
+          </div>
+          <Field label="Entry model"><textarea value={activeSetup.entryModel || ''} onChange={(e) => updateSetup('entryModel', e.target.value)} /></Field>
+          <div className="checklist-editor">
+            {(activeSetup.conditions || []).map((item, index) => <div className="checklist-row" key={index}>
+              <label><input type="checkbox" checked={!!item.checked} onChange={(e) => updateCondition(index, 'checked', e.target.checked)} />Rule</label>
+              <input value={item.label || ''} onChange={(e) => updateCondition(index, 'label', e.target.value)} />
+              <input type="number" value={item.weight || 0} onChange={(e) => updateCondition(index, 'weight', e.target.value)} />
+              <button onClick={() => updateSetup('conditions', activeSetup.conditions.filter((_, i) => i !== index))}><Trash2 size={14} /></button>
+            </div>)}
+            <button onClick={() => updateSetup('conditions', [...(activeSetup.conditions || []), { label: 'New rule', weight: 10, checked: false }])}><Plus size={15} />Add rule</button>
+          </div>
+          <div className="form-grid compact">
+            <Field label="Invalidation"><textarea value={activeSetup.invalidation || ''} onChange={(e) => updateSetup('invalidation', e.target.value)} /></Field>
+            <Field label="Management"><textarea value={activeSetup.management || ''} onChange={(e) => updateSetup('management', e.target.value)} /></Field>
+          </div>
+          <Field label="Setup notes"><textarea value={activeSetup.notes || ''} onChange={(e) => updateSetup('notes', e.target.value)} /></Field>
+          <div className="actions">{setups.length > 1 && <button onClick={deleteSetup}><Trash2 size={14} />Delete setup</button>}</div>
+        </div>}
+      </Panel>
+    </div>
+    <Panel title="Account Review Notes"><textarea className="playbook" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Daily lessons, rules, review process, and account-specific notes..." /></Panel>
+  </section>;
 }
 
 function SettingsPage({ api, accounts, account, options, assets, portfolioLimit, portfolioTemplates, user, setCurrentUser, reload, setToast }) {
@@ -1537,8 +2207,195 @@ function SettingsPage({ api, accounts, account, options, assets, portfolioLimit,
     <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="template-row"><Field label="Auto preset"><select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>{portfolioTemplates.map((template) => <option key={template.id || template.templateKey} value={String(template.id || template.templateKey)}>{template.label}</option>)}</select></Field><button onClick={applyTemplate}><SlidersHorizontal size={15} />Apply</button></div><div className="form-grid"><Field label="Name"><input value={accountDraft.name || ''} onChange={(e) => setAccountField('name', e.target.value)} /></Field><Field label="Provider"><input value={accountDraft.provider || ''} onChange={(e) => setAccountField('provider', e.target.value)} placeholder="Apex, MFF, TopStep, FTMO..." /></Field><Field label="Plan"><input value={accountDraft.planName || ''} onChange={(e) => setAccountField('planName', e.target.value)} placeholder="50K Evaluation" /></Field><Field label="Market"><input value={accountDraft.marketType || ''} onChange={(e) => setAccountField('marketType', e.target.value)} placeholder="Futures / Forex" /></Field><Field label="Type"><select value={accountDraft.type || 'live'} onChange={(e) => setAccountField('type', e.target.value)}><option value="backtest">backtest</option><option value="forward">forward</option><option value="live">live</option><option value="funded">funded</option></select></Field><Field label="Starting Balance"><input type="number" value={accountDraft.startingBalance || ''} onChange={(e) => setAccountField('startingBalance', e.target.value)} /></Field></div><div className="rule-grid"><Field label="Profit Target"><input type="number" value={accountDraft.profitTarget || ''} onChange={(e) => setAccountField('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={accountDraft.dailyLossLimit || ''} onChange={(e) => setAccountField('dailyLossLimit', e.target.value)} /></Field><Field label="Max Drawdown"><input type="number" value={accountDraft.maxDrawdown || ''} onChange={(e) => setAccountField('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={accountDraft.trailingDrawdown || ''} onChange={(e) => setAccountField('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={accountDraft.maxContracts || ''} onChange={(e) => setAccountField('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={accountDraft.minTradingDays || ''} onChange={(e) => setAccountField('minTradingDays', e.target.value)} /></Field></div><div className="form-grid compact"><Field label="Consistency Rule"><textarea value={accountDraft.consistencyRule || ''} onChange={(e) => setAccountField('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={accountDraft.payoutRule || ''} onChange={(e) => setAccountField('payoutRule', e.target.value)} /></Field></div><div className="fee-grid"><Field label="Commission type"><select value={accountDraft.commissionType || 'none'} onChange={(e) => setAccountField('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Amount"><input type="number" step="any" value={accountDraft.commissionAmount ?? ''} onChange={(e) => setAccountField('commissionAmount', e.target.value)} /></Field><Field label="Scope"><select value={accountDraft.commissionScope || 'roundTrip'} onChange={(e) => setAccountField('commissionScope', e.target.value)}><option value="roundTrip">Round trip</option><option value="entry">Entry only</option><option value="exit">Exit only</option></select></Field></div><Field label="Commission note"><input value={accountDraft.commissionNotes || ''} onChange={(e) => setAccountField('commissionNotes', e.target.value)} placeholder="Keep this synced with your broker statement" /></Field><div className="portfolio-summary"><span>{accountDraft.provider || 'Custom'} / {accountDraft.planName || 'Manual plan'}</span><b>{money(accountDraft.startingBalance || 0)}</b><small>{commissionTypeLabels[accountDraft.commissionType || 'none']} {accountDraft.commissionAmount ? `• ${accountDraft.commissionAmount}` : ''}</small></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
     <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
-    <Panel title="Account note"><div className="empty compact-empty">Use Security to update your own password. Admins can manage roles, status, and portfolio limits from the Admin page.</div></Panel></div>
+    <DataTransferPanel api={api} accounts={accounts} account={account} reload={reload} setToast={setToast} /></div>
     <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, value]) => <div className="option-card" key={key}><Field label={key}><textarea value={value} onChange={(e) => setOptionDrafts({ ...optionDrafts, [key]: e.target.value })} /></Field><button onClick={() => saveOption(key)} disabled={savingOption === key}><Save size={14} />{savingOption === key ? 'Saving...' : `Save ${key}`}</button></div>)}</div></Panel></section>;
+}
+
+function DataTransferPanel({ api, accounts, account, reload, setToast }) {
+  const [fileName, setFileName] = useState('');
+  const [importText, setImportText] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [targetAccountId, setTargetAccountId] = useState('');
+  const [busy, setBusy] = useState('');
+  const otherAccounts = accounts.filter((row) => row.id !== account?.id);
+  useEffect(() => {
+    setTargetAccountId(otherAccounts[0]?.id ? String(otherAccounts[0].id) : '');
+  }, [account?.id, accounts.length]);
+
+  function fileFormat(name) {
+    return String(name || '').toLowerCase().endsWith('.csv') ? 'csv' : 'auto';
+  }
+
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.readAsText(file);
+    });
+  }
+
+  async function chooseFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await readFile(file);
+      setFileName(file.name);
+      setImportText(text);
+      setPreview(null);
+      setToast('File loaded. Preview before import.');
+    } catch (error) {
+      setToast(error.message || 'Could not read file');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  async function previewImport() {
+    if (!importText.trim()) {
+      setToast('Choose a CSV or JSON file first');
+      return;
+    }
+    setBusy('preview');
+    try {
+      const data = await api(`/accounts/${account.id}/trades/import/preview`, {
+        method: 'POST',
+        body: JSON.stringify({ text: importText, format: fileFormat(fileName) })
+      });
+      setPreview(data);
+      setToast(`Preview ready: ${data.ready} ready, ${data.duplicate} duplicate, ${data.error} error${data.reviews ? `, ${data.reviews} reviews` : ''}`);
+    } catch (error) {
+      setToast(error.message || 'Preview failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function importTrades() {
+    if (!preview) {
+      setToast('Preview the file before importing');
+      return;
+    }
+    setBusy('import');
+    try {
+      const data = await api(`/accounts/${account.id}/trades/import`, {
+        method: 'POST',
+        body: JSON.stringify({ text: importText, format: fileFormat(fileName) })
+      });
+      await reload(account.id);
+      setToast(`Imported ${data.inserted}, skipped ${data.skipped}, failed ${data.failed}${data.reviewsImported ? `, reviews ${data.reviewsImported}` : ''}`);
+    } catch (error) {
+      setToast(error.message || 'Import failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function exportPortfolio() {
+    setBusy('export');
+    try {
+      const [tradeData, reviewData] = await Promise.all([
+        api(`/accounts/${account.id}/trades`),
+        api(`/accounts/${account.id}/daily-reviews`)
+      ]);
+      const blob = new Blob([JSON.stringify({
+        account: account.name,
+        exportedAt: new Date().toISOString(),
+        trades: tradeData.trades,
+        dailyReviews: reviewData.reviews || {}
+      }, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ztj-${String(account.name || 'portfolio').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${today()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setToast('Portfolio JSON exported with trades and daily reviews');
+    } catch (error) {
+      setToast(error.message || 'Export failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function exportPortfolioCsv() {
+    setBusy('csv');
+    try {
+      const data = await api(`/accounts/${account.id}/trades`);
+      const rows = data.trades || [];
+      const headers = ['date', 'asset', 'direction', 'session', 'entryTime', 'exitTime', 'durationTime', 'result', 'pnl', 'commissionAmount', 'plannedR', 'actualR', 'maxR', 'maxTick', 'ltfEntry', 'setupGrade', 'ruleViolation', 'emotionAfter', 'notes'];
+      const escape = (value) => {
+        if (value === null || value === undefined) return '';
+        const text = String(value);
+        return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+      };
+      const csv = [headers.join(','), ...rows.map((row) => headers.map((header) => escape(row[header])).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ztj-${String(account.name || 'portfolio').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${today()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setToast('Portfolio CSV exported');
+    } catch (error) {
+      setToast(error.message || 'CSV export failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function transferAll() {
+    if (!targetAccountId) {
+      setToast('Create another portfolio before transfer');
+      return;
+    }
+    setBusy('transfer');
+    try {
+      const data = await api(`/accounts/${account.id}/trades/transfer`, {
+        method: 'POST',
+        body: JSON.stringify({ targetAccountId })
+      });
+      await reload(account.id);
+      setToast(`Copied ${data.copied}, skipped ${data.skipped}${data.reviewsCopied ? `, reviews ${data.reviewsCopied}` : ''}`);
+    } catch (error) {
+      setToast(error.message || 'Transfer failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const canImportPreview = Boolean(preview && (preview.ready > 0 || preview.reviews > 0));
+
+  return <Panel title="Data Transfer">
+    <div className="transfer-panel">
+      <div className="transfer-actions">
+        <label className="upload-button"><Upload size={15} />Choose CSV / JSON<input type="file" accept=".csv,.json,application/json,text/csv" onChange={chooseFile} /></label>
+        <button onClick={previewImport} disabled={!importText || busy === 'preview'}><FileText size={15} />Preview</button>
+        <button className="primary" onClick={importTrades} disabled={!canImportPreview || busy === 'import'}><Upload size={15} />Import data</button>
+      </div>
+      <small className="transfer-note">JSON package includes trades and daily reviews. CSV import/export is trades only.</small>
+      <div className="transfer-status">
+        <span>{fileName || 'No file selected'}</span>
+        {preview && <b>{preview.ready} ready · {preview.duplicate} duplicate · {preview.error} error{preview.reviews ? ` · ${preview.reviews} reviews` : ''}</b>}
+      </div>
+      {preview?.preview?.length > 0 && <div className="table-wrap slim transfer-preview"><table><thead><tr><th>Status</th><th>Date</th><th>Asset</th><th>Session</th><th>Result</th><th>P&L</th></tr></thead><tbody>{preview.preview.map((row) => <tr key={row.index} className={row.status === 'error' ? 'invalid' : row.status === 'duplicate' ? 'muted-row' : ''}><td><b>{row.status}</b><small>{row.error || ''}</small></td><td>{row.trade.date || '-'}</td><td>{row.trade.asset || '-'}</td><td>{row.trade.session || '-'}</td><td>{row.trade.result || '-'}</td><td className={Number(row.trade.pnl || 0) >= 0 ? 'pos' : 'neg'}>{money(row.trade.pnl || 0)}</td></tr>)}</tbody></table></div>}
+      <div className="transfer-split">
+        <div className="transfer-export">
+          <button onClick={exportPortfolio} disabled={busy === 'export'}><Download size={15} />Export JSON</button>
+          <button onClick={exportPortfolioCsv} disabled={busy === 'csv'}><Download size={15} />Export CSV</button>
+        </div>
+        <div className="transfer-copy">
+          <Field label="Copy trades & reviews to"><select value={targetAccountId} onChange={(e) => setTargetAccountId(e.target.value)} disabled={!otherAccounts.length}>{otherAccounts.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field>
+          <button onClick={transferAll} disabled={!targetAccountId || busy === 'transfer'}><Upload size={15} />Copy data</button>
+        </div>
+      </div>
+    </div>
+  </Panel>;
 }
 
 function CoachPage({ api, token, currentUser, viewUserId, setViewUserId, portfolioTemplates, setPortfolioTemplates, setToast }) {

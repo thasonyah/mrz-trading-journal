@@ -254,6 +254,159 @@ function toCsv(rows) {
   ].join('\n');
 }
 
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  const source = String(text || '').replace(/^\uFEFF/, '');
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      i += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === ',' && !quoted) {
+      row.push(cell);
+      cell = '';
+    } else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && next === '\n') i += 1;
+      row.push(cell);
+      if (row.some((value) => String(value).trim())) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell);
+  if (row.some((value) => String(value).trim())) rows.push(row);
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((header) => String(header || '').trim());
+  return rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
+}
+
+function importObjectsFromText(text, format = 'auto') {
+  return importPackageFromText(text, format).trades;
+}
+
+function importPackageFromText(text, format = 'auto') {
+  const raw = String(text || '').trim();
+  if (!raw) return { trades: [], dailyReviews: {} };
+  const isJson = format === 'json' || (format === 'auto' && ['[', '{'].includes(raw[0]));
+  if (isJson) {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { trades: parsed, dailyReviews: {} };
+    return {
+      trades: Array.isArray(parsed.trades) ? parsed.trades : Array.isArray(parsed.data) ? parsed.data : [],
+      dailyReviews: parsed.dailyReviews && typeof parsed.dailyReviews === 'object' && !Array.isArray(parsed.dailyReviews) ? parsed.dailyReviews : {}
+    };
+  }
+  return { trades: parseCsv(raw), dailyReviews: {} };
+}
+
+function normalizeDailyReviews(input = {}) {
+  return Object.fromEntries(Object.entries(input)
+    .map(([date, review]) => {
+      const key = String(date || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !review || typeof review !== 'object') return null;
+      const clean = {
+        summary: String(review.summary || ''),
+        repeat: String(review.repeat || ''),
+        reduce: String(review.reduce || ''),
+        nextPlan: String(review.nextPlan || '')
+      };
+      const hasContent = Object.values(clean).some((value) => value.trim());
+      return hasContent ? [key, clean] : null;
+    })
+    .filter(Boolean));
+}
+
+function pickValue(row, names) {
+  for (const name of names) {
+    if (row[name] !== undefined && row[name] !== '') return row[name];
+  }
+  return undefined;
+}
+
+function normalizeImportedTrade(row) {
+  return {
+    date: pickValue(row, ['date', 'trade_date', 'Trade Date', 'Date', 'closeDate', 'Close Date']),
+    asset: pickValue(row, ['asset', 'symbol', 'Symbol', 'Asset']) || 'NQ1',
+    direction: String(pickValue(row, ['direction', 'side', 'Side', 'Direction']) || 'long').toLowerCase() === 'short' ? 'short' : 'long',
+    session: pickValue(row, ['session', 'Session']) || 'AS',
+    entryTime: pickValue(row, ['entryTime', 'entry_time', 'Entry Time']),
+    exitTime: pickValue(row, ['exitTime', 'exit_time', 'Exit Time']),
+    durationTime: pickValue(row, ['durationTime', 'duration_time', 'Duration']),
+    orderWaitMinutes: pickValue(row, ['orderWaitMinutes', 'order_wait_minutes']),
+    mode: pickValue(row, ['mode', 'Mode']),
+    entryPrice: pickValue(row, ['entryPrice', 'entry_price', 'Entry']),
+    stopLoss: pickValue(row, ['stopLoss', 'stop_loss', 'Stop Loss']),
+    takeProfit: pickValue(row, ['takeProfit', 'take_profit', 'Take Profit']),
+    tpTicks: pickValue(row, ['tpTicks', 'tp_ticks', 'TP Tick']),
+    slTicks: pickValue(row, ['slTicks', 'sl_ticks', 'SL Tick']),
+    tickSize: pickValue(row, ['tickSize', 'tick_size']) || 0.25,
+    dollarPerPoint: pickValue(row, ['dollarPerPoint', 'dollar_per_point']) || 1,
+    plannedR: pickValue(row, ['plannedR', 'planned_r', 'RR']),
+    actualR: pickValue(row, ['actualR', 'actual_r']),
+    maxR: pickValue(row, ['maxR', 'max_r', 'Max RR']),
+    maxTick: pickValue(row, ['maxTick', 'max_tick', 'MAX TICK']),
+    mfeR: pickValue(row, ['mfeR', 'mfe_r']),
+    maeR: pickValue(row, ['maeR', 'mae_r']),
+    riskAmount: pickValue(row, ['riskAmount', 'risk_amount', 'Risk']),
+    lotSize: pickValue(row, ['lotSize', 'lot_size', 'Lot']),
+    grossPnl: pickValue(row, ['grossPnl', 'gross_pnl', 'Gross P&L']),
+    commissionAmount: pickValue(row, ['commissionAmount', 'commission_amount', 'Commission']) || 0,
+    netPnl: pickValue(row, ['netPnl', 'net_pnl', 'Net P&L']),
+    pnl: pickValue(row, ['pnl', 'P&L', 'Net P&L', 'netPnl', 'net_pnl']) || 0,
+    slAmount: pickValue(row, ['slAmount', 'sl_amount', 'SL']),
+    tpAmount: pickValue(row, ['tpAmount', 'tp_amount', 'TP']),
+    tpPercent: pickValue(row, ['tpPercent', 'tp_percent']),
+    balanceAfter: pickValue(row, ['balanceAfter', 'balance_after', 'Balance']),
+    conLoss: pickValue(row, ['conLoss', 'con_loss']),
+    sumConLossAmount: pickValue(row, ['sumConLossAmount', 'sum_con_loss_amount']),
+    ddLossPct: pickValue(row, ['ddLossPct', 'dd_loss_pct']),
+    sumDdLossPct: pickValue(row, ['sumDdLossPct', 'sum_dd_loss_pct']),
+    result: String(pickValue(row, ['result', 'Result']) || 'miss').toLowerCase(),
+    pictureUrl: pickValue(row, ['pictureUrl', 'picture_url']),
+    tipUrl: pickValue(row, ['tipUrl', 'tip_url']),
+    htfBias: pickValue(row, ['htfBias', 'htf_bias']),
+    htfPoi: pickValue(row, ['htfPoi', 'htf_poi']),
+    poiType: pickValue(row, ['poiType', 'poi_type']),
+    poiHasFvg: pickValue(row, ['poiHasFvg', 'poi_has_fvg']),
+    fvgPosition: pickValue(row, ['fvgPosition', 'fvg_position']),
+    liquiditySweep: pickValue(row, ['liquiditySweep', 'liquidity_sweep']),
+    bos: pickValue(row, ['bos', 'BOS']),
+    choch: pickValue(row, ['choch', 'CHoCH']),
+    mtfStructure: pickValue(row, ['mtfStructure', 'mtf_structure']),
+    ltfEntry: pickValue(row, ['ltfEntry', 'ltf_entry', 'LTF Entry']),
+    keyZone: pickValue(row, ['keyZone', 'key_zone']),
+    setupGrade: pickValue(row, ['setupGrade', 'setup_grade', 'Grade']),
+    setupScore: pickValue(row, ['setupScore', 'setup_score']),
+    ruleViolation: pickValue(row, ['ruleViolation', 'rule_violation']),
+    emotionBefore: pickValue(row, ['emotionBefore', 'emotion_before']),
+    emotionAfter: pickValue(row, ['emotionAfter', 'emotion_after']),
+    disciplineScore: pickValue(row, ['disciplineScore', 'discipline_score']),
+    chartHtf: pickValue(row, ['chartHtf', 'chart_htf']),
+    chartMtf: pickValue(row, ['chartMtf', 'chart_mtf']),
+    chartLtf: pickValue(row, ['chartLtf', 'chart_ltf']),
+    notes: pickValue(row, ['notes', 'Notes'])
+  };
+}
+
+function tradeSignature(trade) {
+  return [
+    trade.trade_date || trade.date || '',
+    trade.entry_time || trade.entryTime || '',
+    trade.asset || '',
+    trade.direction || '',
+    trade.result || '',
+    Number(trade.pnl ?? trade.net_pnl ?? trade.netPnl ?? 0).toFixed(2)
+  ].join('|').toLowerCase();
+}
+
 async function issueEmailVerification(req, user) {
   const token = await createAuthToken(user.id, 'verify_email');
   const link = `${publicBaseUrl(req)}/verify-email?token=${token}`;
@@ -834,6 +987,133 @@ app.delete('/api/accounts/:accountId/trades/:id', auth, asyncHandler(async (req,
   res.json({ ok: true });
 }));
 
+async function importPreview(userId, accountId, body) {
+  await ensureAccount(userId, accountId);
+  const pack = importPackageFromText(body.text, body.format || 'auto');
+  const objects = pack.trades;
+  const dailyReviews = normalizeDailyReviews(pack.dailyReviews);
+  const existingRows = await all('SELECT * FROM trades WHERE user_id=? AND account_id=?', [userId, accountId]);
+  const existing = new Set(existingRows.map(tradeSignature));
+  const preview = objects.map((row, index) => {
+    const trade = normalizeImportedTrade(row);
+    const normalized = normalizeTrade(trade);
+    const error = validateTrade(normalized);
+    const duplicate = existing.has(tradeSignature(normalized));
+    return {
+      index,
+      trade,
+      status: error ? 'error' : duplicate ? 'duplicate' : 'ready',
+      error: error || null
+    };
+  });
+  return {
+    total: preview.length,
+    ready: preview.filter((row) => row.status === 'ready').length,
+    duplicate: preview.filter((row) => row.status === 'duplicate').length,
+    error: preview.filter((row) => row.status === 'error').length,
+    reviews: Object.keys(dailyReviews).length,
+    preview: preview.slice(0, 25)
+  };
+}
+
+app.post('/api/accounts/:accountId/trades/import/preview', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  res.json(await importPreview(userId, req.params.accountId, req.body || {}));
+}));
+
+app.post('/api/accounts/:accountId/trades/import', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  await ensureAccount(userId, req.params.accountId);
+  const pack = importPackageFromText(req.body.text, req.body.format || 'auto');
+  const objects = pack.trades;
+  const dailyReviews = normalizeDailyReviews(pack.dailyReviews);
+  const existingRows = await all('SELECT * FROM trades WHERE user_id=? AND account_id=?', [userId, req.params.accountId]);
+  const existing = new Set(existingRows.map(tradeSignature));
+  let inserted = 0;
+  let skipped = 0;
+  let failed = 0;
+  let reviewsImported = 0;
+  await transaction(async (tx) => {
+    for (const row of objects) {
+      const t = normalizeTrade(normalizeImportedTrade(row));
+      const error = validateTrade(t);
+      const signature = tradeSignature(t);
+      if (error) {
+        failed += 1;
+      } else if (existing.has(signature)) {
+        skipped += 1;
+      } else {
+        const cols = ['user_id', 'account_id', ...tradeColumns];
+        const values = [userId, req.params.accountId, ...tradeColumns.map((c) => t[c])];
+        const placeholders = cols.map(() => '?').join(',');
+        await tx.insert(`INSERT INTO trades (${cols.join(',')}) VALUES (${placeholders})`, values);
+        existing.add(signature);
+        inserted += 1;
+      }
+    }
+    for (const [date, review] of Object.entries(dailyReviews)) {
+      await tx.run(`
+        INSERT INTO journal_notes (user_id, account_id, title, content, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, account_id, title) DO UPDATE SET content=excluded.content, updated_at=CURRENT_TIMESTAMP
+      `, [userId, req.params.accountId, `Daily Review: ${date}`, JSON.stringify(review)]);
+      reviewsImported += 1;
+    }
+  });
+  res.json({ inserted, skipped, failed, total: objects.length, reviewsImported });
+}));
+
+app.post('/api/accounts/:accountId/trades/transfer', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  const sourceAccountId = req.params.accountId;
+  const targetAccountId = req.body.targetAccountId;
+  if (!targetAccountId || Number(targetAccountId) === Number(sourceAccountId)) return res.status(400).json({ error: 'Choose a different target portfolio' });
+  await ensureAccount(userId, sourceAccountId);
+  await ensureAccount(userId, targetAccountId);
+  const selectedIds = Array.isArray(req.body.tradeIds) ? req.body.tradeIds.map(Number).filter(Boolean) : [];
+  const sourceRows = selectedIds.length
+    ? await all(`SELECT * FROM trades WHERE user_id=? AND account_id=? AND id IN (${selectedIds.map(() => '?').join(',')})`, [userId, sourceAccountId, ...selectedIds])
+    : await all('SELECT * FROM trades WHERE user_id=? AND account_id=? ORDER BY trade_date, entry_time, id', [userId, sourceAccountId]);
+  const sourceReviewRows = await all(`
+    SELECT title, content
+    FROM journal_notes
+    WHERE user_id=? AND account_id=? AND title LIKE 'Daily Review:%'
+    ORDER BY title
+  `, [userId, sourceAccountId]);
+  const selectedDates = selectedIds.length ? new Set(sourceRows.map((row) => row.trade_date).filter(Boolean)) : null;
+  const targetRows = await all('SELECT * FROM trades WHERE user_id=? AND account_id=?', [userId, targetAccountId]);
+  const existing = new Set(targetRows.map(tradeSignature));
+  let copied = 0;
+  let skipped = 0;
+  let reviewsCopied = 0;
+  await transaction(async (tx) => {
+    for (const row of sourceRows) {
+      const signature = tradeSignature(row);
+      if (existing.has(signature)) {
+        skipped += 1;
+        continue;
+      }
+      const cols = ['user_id', 'account_id', ...tradeColumns];
+      const values = [userId, targetAccountId, ...tradeColumns.map((c) => row[c])];
+      const placeholders = cols.map(() => '?').join(',');
+      await tx.insert(`INSERT INTO trades (${cols.join(',')}) VALUES (${placeholders})`, values);
+      existing.add(signature);
+      copied += 1;
+    }
+    for (const row of sourceReviewRows) {
+      const date = String(row.title || '').replace('Daily Review:', '').trim().slice(0, 10);
+      if (selectedDates && !selectedDates.has(date)) continue;
+      await tx.run(`
+        INSERT INTO journal_notes (user_id, account_id, title, content, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, account_id, title) DO UPDATE SET content=excluded.content, updated_at=CURRENT_TIMESTAMP
+      `, [userId, targetAccountId, row.title, row.content || '{}']);
+      reviewsCopied += 1;
+    }
+  });
+  res.json({ copied, skipped, total: sourceRows.length, reviewsCopied });
+}));
+
 app.get('/api/accounts/:accountId/note', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
   await ensureAccount(userId, req.params.accountId);
@@ -846,6 +1126,73 @@ app.put('/api/accounts/:accountId/note', auth, asyncHandler(async (req, res) => 
   await ensureAccount(userId, req.params.accountId);
   await run(upsertNoteSql(), [userId, req.params.accountId, String(req.body.content || '')]);
   res.json({ ok: true });
+}));
+
+app.get('/api/accounts/:accountId/playbook-setups', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  await ensureAccount(userId, req.params.accountId);
+  const note = await get('SELECT content, updated_at "updatedAt" FROM journal_notes WHERE user_id=? AND account_id=? AND title=?', [userId, req.params.accountId, 'Setup Playbook']);
+  let setups = [];
+  try {
+    setups = note?.content ? JSON.parse(note.content) : [];
+  } catch {
+    setups = [];
+  }
+  res.json({ setups: Array.isArray(setups) ? setups : [], updatedAt: note?.updatedAt || null });
+}));
+
+app.put('/api/accounts/:accountId/playbook-setups', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  await ensureAccount(userId, req.params.accountId);
+  const setups = Array.isArray(req.body.setups) ? req.body.setups.slice(0, 30) : [];
+  await run(`
+    INSERT INTO journal_notes (user_id, account_id, title, content, updated_at)
+    VALUES (?, ?, 'Setup Playbook', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id, account_id, title) DO UPDATE SET content=excluded.content, updated_at=CURRENT_TIMESTAMP
+  `, [userId, req.params.accountId, JSON.stringify(setups)]);
+  res.json({ ok: true, setups });
+}));
+
+app.get('/api/accounts/:accountId/daily-reviews', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  await ensureAccount(userId, req.params.accountId);
+  const rows = await all(`
+    SELECT title, content, updated_at "updatedAt"
+    FROM journal_notes
+    WHERE user_id=? AND account_id=? AND title LIKE 'Daily Review:%'
+    ORDER BY title
+  `, [userId, req.params.accountId]);
+  const reviews = {};
+  rows.forEach((row) => {
+    const date = String(row.title || '').replace('Daily Review:', '').trim();
+    if (!date) return;
+    try {
+      reviews[date] = row.content ? JSON.parse(row.content) : {};
+    } catch {
+      reviews[date] = { summary: row.content || '' };
+    }
+    reviews[date].updatedAt = row.updatedAt;
+  });
+  res.json({ reviews });
+}));
+
+app.put('/api/accounts/:accountId/daily-reviews/:date', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  await ensureAccount(userId, req.params.accountId);
+  const date = String(req.params.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Invalid review date' });
+  const review = {
+    summary: String(req.body.summary || ''),
+    repeat: String(req.body.repeat || ''),
+    reduce: String(req.body.reduce || ''),
+    nextPlan: String(req.body.nextPlan || '')
+  };
+  await run(`
+    INSERT INTO journal_notes (user_id, account_id, title, content, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id, account_id, title) DO UPDATE SET content=excluded.content, updated_at=CURRENT_TIMESTAMP
+  `, [userId, req.params.accountId, `Daily Review: ${date}`, JSON.stringify(review)]);
+  res.json({ ok: true, review });
 }));
 
 app.get('/api/admin/team', auth, asyncHandler(async (req, res) => {

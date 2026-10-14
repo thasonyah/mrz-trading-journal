@@ -7,11 +7,14 @@ A runnable trading journal rebuilt from observed behavior, not copied code. It k
 - Email + password authentication with JWT, email verification, and password reset links
 - Local SQLite database with migrations, plus Render Postgres support through `DATABASE_URL`
 - Portfolio management for Backtest, Forward Test, and Live-style datasets, limited to 5 portfolios per user by default
+- Prop-firm portfolio rules for provider, plan, profit target, daily loss, max drawdown, trailing drawdown, max contracts, minimum trading days, payout rules, and default commission
 - Admin user management for roles, status, email verification, portfolio limits, and opening any user's portfolios
-- Add/edit/delete trades with automatic risk, lot, planned RR, result R, and P&L calculation
+- Add/edit/delete trades with automatic risk, lot, planned RR, result R, commission, net P&L, duration, projected balance, and prop-firm rule preview
 - Market structure fields: HTF bias/POI, POI type, FVG position, Liquidity Sweep, BOS, CHoCH, MTF Structure, LTF Entry, Key Zone
-- Psychology fields: rule violation, emotion before/after, discipline score, reflection
-- Dashboard, History filters/search, Calendar, Analytics, RR recommendation table, Playbook notes, Settings, and read-only Coach View
+- Excursion and psychology fields: Max RR, Max Tick, MFE/MAE, rule violation, emotion before/after, discipline score, reflection
+- Dashboard, History filters/search, Calendar, Daily Review lightbox/log, Analytics, RR recommendation table, Playbook notes, Settings, and Admin/Coach View
+- JSON import/export and portfolio-to-portfolio transfer for trades plus Daily Reviews; CSV remains trades-only for spreadsheet workflows
+- Custom field options, asset presets, profile display, password changes, and email verification/password reset flows
 - Demo seed data for immediate testing
 
 ## Run
@@ -82,9 +85,31 @@ MAIL_FROM=<optional from email>
 DEMO_SEED_ENABLED=false
 ```
 
+For Brevo SMTP Free, use values like:
+
+```text
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<your Brevo SMTP login>
+SMTP_PASS=<your Brevo SMTP key>
+MAIL_FROM=<verified sender email>
+```
+
 Important: Render Free web service files are ephemeral, so this project uses Render Postgres instead of SQLite in production. Render Free Postgres is useful for testing, but as of October 2026 it expires 30 days after creation and has no automatic backups. Upgrade the database plan or move to a long-term Postgres provider before storing critical trading records.
 
 If SMTP is not configured, the app still works for testing: registration and password reset responses include a one-time verification/reset link, and the server logs the same link. Configure SMTP before using the system with real users.
+
+## Data Transfer
+
+Use Settings > Data Transfer for migration between portfolios or accounts:
+
+- `Export JSON` creates a package with trades and Daily Reviews.
+- `Import data` accepts the JSON package and imports new trades while upserting Daily Reviews by date.
+- `Copy data` copies trades and Daily Reviews from the current portfolio to another portfolio on the same account.
+- `Export CSV` and CSV import are trades-only, intended for spreadsheets and quick audits.
+
+Always preview imports before importing. Duplicate trades are skipped using date, entry time, asset, direction, result, and P&L.
 
 ## Calculation Notes
 
@@ -92,12 +117,39 @@ If SMTP is not configured, the app still works for testing: registration and pas
 - `rewardPoints = abs(takeProfit - entryPrice)`
 - `plannedR = rewardPoints / riskPoints`
 - `lotSize = riskAmount / (riskPoints * dollarPerPoint)`
-- Win P&L uses `riskAmount * plannedR`
-- Loss/Reversed P&L uses `-riskAmount`
-- Breakeven/Miss P&L uses `0`
+- Gross win P&L uses `riskAmount * plannedR`
+- Gross loss/reversed P&L uses `-riskAmount`
+- Breakeven/Miss gross P&L uses `0`
+- Commission can come from the portfolio default, per-trade override, per-contract rule, or percent of gross P&L
+- Miss trades force commission to `0`
+- Net P&L is `grossPnl - commissionAmount`
+- Duration Time is calculated from Entry Time and Exit Time when both are present
 - Expectancy uses `winRate * avgWinR - lossRate * 1R`
 - Max drawdown walks chronological trade P&L from account starting balance
 - RR recommendation tests candidate RR thresholds against winning trades whose `maxR` reached that threshold
+- Dashboard and Calendar Daily Results show market weekdays only, Monday through Friday
+- Daily Results stacks Daily P&L above zero and Commission/SL below zero
+
+## Local QA Before Deploy
+
+Before deploying, run:
+
+```bash
+npm run build
+node /Users/mrz/.agents/skills/impeccable/scripts/detect.mjs --json src/main.jsx src/styles.css
+```
+
+Then preview locally at `http://127.0.0.1:5173` and check:
+
+- Dashboard: Prop Firm Rules, Daily Results, LTF Entry Receive, Latest Review Notes
+- Add Trade: defaults, duration auto calculation, Miss commission behavior, projected rule preview
+- History: LTF Entry column and chart link table
+- Calendar: month grid, lightbox, Daily Review, Daily Results, Daily Review Log
+- Analytics: Overview, Time, Setup, Risk, Psychology, Custom tabs
+- Settings: profile, portfolio commission, asset presets, Data Transfer, field options
+- Admin: user role/status/verification/limit save flow and SMTP status
+
+Do not deploy until the local preview is approved.
 
 ## Project Structure
 
@@ -106,6 +158,7 @@ If SMTP is not configured, the app still works for testing: registration and pas
 - `server/migrate.js` SQLite migration runner and Postgres schema setup
 - `server/seed.js` demo user and sample trades
 - `migrations/001_initial.sql` schema
+- `vite.config.js` production chunk splitting
 - `src/main.jsx` React application and analytics logic
 - `src/styles.css` responsive UI styling
 
