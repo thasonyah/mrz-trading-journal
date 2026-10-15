@@ -191,6 +191,51 @@ a:hover { text-decoration: underline; }
   background: transparent;
   color: var(--accent);
 }
+.language-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+.auth-card .language-switcher {
+  justify-content: center;
+  margin: -2px 0 2px;
+}
+.language-switcher > div {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: #0c0d11;
+}
+.language-switcher button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 900;
+}
+.language-switcher button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.language-switcher.compact {
+  justify-content: flex-start;
+}
+.language-switcher.compact > div {
+  width: 126px;
+}
 
 .app-shell {
   min-height: 100vh;
