@@ -10,6 +10,254 @@ import './styles.css';
 
 const API = import.meta.env.VITE_API_BASE
   || (location.hostname === '127.0.0.1' && location.port === '5173' ? 'http://127.0.0.1:5174/api' : '/api');
+
+const languages = [
+  { code: 'th', label: 'ไทย', short: 'TH' },
+  { code: 'en', label: 'English', short: 'EN' }
+];
+
+const translations = {
+  en: {},
+  th: {
+    'Trading journal for structure, execution, psychology, and edge review.': 'สมุดบันทึกเทรดสำหรับโครงสร้างตลาด การเข้าเทรด จิตวิทยา และการหา edge',
+    Login: 'เข้าสู่ระบบ',
+    'Sign up': 'สมัครสมาชิก',
+    Username: 'ชื่อผู้ใช้',
+    Email: 'อีเมล',
+    'Status message': 'ข้อความสถานะ',
+    Token: 'โทเคน',
+    Password: 'รหัสผ่าน',
+    'Create Account': 'สร้างบัญชี',
+    'Send reset link': 'ส่งลิงก์รีเซ็ตรหัสผ่าน',
+    'Verify email': 'ยืนยันอีเมล',
+    'Reset password': 'รีเซ็ตรหัสผ่าน',
+    'Forgot password': 'ลืมรหัสผ่าน',
+    'Show password': 'แสดงรหัสผ่าน',
+    'Hide password': 'ซ่อนรหัสผ่าน',
+    Dashboard: 'แดชบอร์ด',
+    'Add Trade': 'เพิ่มรายการเทรด',
+    'Edit Trade': 'แก้ไขรายการเทรด',
+    History: 'ประวัติ',
+    Calendar: 'ปฏิทิน',
+    Analytics: 'วิเคราะห์',
+    Playbook: 'เพลย์บุ๊ก',
+    Settings: 'ตั้งค่า',
+    Admin: 'แอดมิน',
+    Portfolio: 'พอร์ต',
+    Logout: 'ออกจากระบบ',
+    Language: 'ภาษา',
+    'POI to outcome': 'จาก POI สู่ผลลัพธ์',
+    'trades logged': 'รายการที่บันทึก',
+    'Log trade': 'บันทึกเทรด',
+    'performance overview': 'ภาพรวมผลลัพธ์',
+    'Backtest performance overview': 'ภาพรวมผลการ Backtest',
+    'Gross P&L': 'กำไร/ขาดทุนก่อนหักค่าใช้จ่าย',
+    Commission: 'ค่าคอมมิชชัน',
+    'Net P&L': 'กำไร/ขาดทุนสุทธิ',
+    'Win Rate': 'อัตราชนะ',
+    'Profit Factor': 'Profit Factor',
+    Expectancy: 'Expectancy',
+    'Max Drawdown': 'Drawdown สูงสุด',
+    'Avg Max RR': 'ค่าเฉลี่ย Max RR',
+    'RR Min / Med / Max': 'RR ต่ำสุด / กลาง / สูงสุด',
+    'Avg Duration': 'เวลาเฉลี่ย',
+    'Asia RR / Tick': 'Asia RR / Tick',
+    'Top LTF Entry': 'LTF Entry ที่ใช้บ่อยที่สุด',
+    'Prop Firm Rules': 'กฎของพอร์ต Prop Firm',
+    'Equity Curve': 'Equity Curve',
+    'Daily Results': 'ผลลัพธ์รายวัน',
+    'Entry Time Edge': 'ช่วงเวลาเข้าเทรดที่ได้เปรียบ',
+    'LTF Entry Receive': 'LTF Entry Receive',
+    Trades: 'รายการเทรด',
+    Winrate: 'อัตราชนะ',
+    'Avg RR': 'RR เฉลี่ย',
+    'Avg Tick': 'Tick เฉลี่ย',
+    'Latest Review Notes': 'บันทึกรีวิวล่าสุด',
+    'Risk Engine': 'Risk Engine',
+    Asset: 'สินทรัพย์',
+    'Risk $': 'เงินที่เสี่ยง',
+    Entry: 'จุดเข้า',
+    'TP (Tick)': 'TP (Tick)',
+    'SL (Tick)': 'SL (Tick)',
+    Point: 'Point',
+    Lot: 'Lot',
+    Stop: 'Stop',
+    Target: 'Target',
+    '$ / point': '$ / point',
+    'Planned RR': 'RR ที่วางแผน',
+    'Suggested lot': 'Lot แนะนำ',
+    'SL$ / TP$': 'SL$ / TP$',
+    'Trade Information': 'ข้อมูลการเทรด',
+    Date: 'วันที่',
+    Session: 'Session',
+    Mode: 'Mode',
+    'Entry time': 'เวลาเข้า',
+    'Exit time': 'เวลาออก',
+    'Duration Time': 'ระยะเวลา',
+    Direction: 'ทิศทาง',
+    Result: 'ผลลัพธ์',
+    Long: 'Long',
+    Short: 'Short',
+    Win: 'ชนะ',
+    Loss: 'แพ้',
+    Breakeven: 'เสมอ',
+    Miss: 'พลาด',
+    Reversed: 'กลับทาง',
+    'POI and Structure': 'POI และโครงสร้าง',
+    'HTF Bias': 'HTF Bias',
+    'HTF POI': 'HTF POI',
+    'MTF Structure': 'MTF Structure',
+    'LTF Entry': 'LTF Entry',
+    'Key Zone': 'Key Zone',
+    'FVG Position': 'ตำแหน่ง FVG',
+    'Grade, Excursion, Psychology': 'เกรด, Excursion, จิตวิทยา',
+    'Setup Grade': 'เกรด Setup',
+    'Setup Score': 'คะแนน Setup',
+    'Max RR': 'Max RR',
+    'Max Tick': 'Max Tick',
+    'MFE / MAE': 'MFE / MAE',
+    'Rule Violation': 'ผิดกฎ',
+    'Emotion After': 'อารมณ์หลังเทรด',
+    Reflection: 'บันทึกทบทวน',
+    'Chart Journal': 'Chart Journal',
+    'HTF Chart URL': 'ลิงก์กราฟ HTF',
+    'MTF Chart URL': 'ลิงก์กราฟ MTF',
+    'LTF Chart URL': 'ลิงก์กราฟ LTF',
+    'Picture URL': 'ลิงก์รูปภาพ',
+    'Tip URL': 'ลิงก์ Tip',
+    'Save trade': 'บันทึกเทรด',
+    'Update trade': 'อัปเดตเทรด',
+    Cancel: 'ยกเลิก',
+    'Export JSON': 'ส่งออก JSON',
+    'All results': 'ทุกผลลัพธ์',
+    'Search setup, notes, result, asset...': 'ค้นหา setup, notes, result, asset...',
+    Profile: 'โปรไฟล์',
+    Nickname: 'ชื่อเล่น',
+    'Show contact': 'เลือกข้อมูลที่แสดง',
+    Phone: 'เบอร์โทร',
+    Facebook: 'Facebook',
+    'ข้อความสถานะ': 'ข้อความสถานะ',
+    Preview: 'ดูตัวอย่าง',
+    'Preview label': 'ตัวอย่าง:',
+    'Save profile': 'บันทึกโปรไฟล์',
+    'Portfolio Management': 'จัดการพอร์ต',
+    'New portfolio': 'สร้างพอร์ตใหม่',
+    'Auto preset': 'Preset อัตโนมัติ',
+    Apply: 'นำไปใช้',
+    Name: 'ชื่อ',
+    Provider: 'ผู้ให้บริการ',
+    Plan: 'แผน',
+    Market: 'ตลาด',
+    Type: 'ประเภท',
+    'Starting Balance': 'Balance เริ่มต้น',
+    'Profit Target': 'เป้ากำไร',
+    'Daily Loss': 'ขาดทุนรายวัน',
+    'Trailing DD': 'Trailing DD',
+    'Max Contracts': 'จำนวนสัญญาสูงสุด',
+    'Min Days': 'จำนวนวันขั้นต่ำ',
+    'Consistency Rule': 'กฎ Consistency',
+    'Payout Rule': 'กฎ Payout',
+    'Commission type': 'ประเภทค่าคอมมิชชัน',
+    Amount: 'จำนวน',
+    Add: 'เพิ่ม',
+    Scope: 'ขอบเขต',
+    Save: 'บันทึก',
+    'Commission note': 'หมายเหตุค่าคอมมิชชัน',
+    'Save portfolio': 'บันทึกพอร์ต',
+    Reset: 'รีเซ็ต',
+    Delete: 'ลบ',
+    Security: 'ความปลอดภัย',
+    'Current password': 'รหัสผ่านปัจจุบัน',
+    'New password': 'รหัสผ่านใหม่',
+    'Confirm password': 'ยืนยันรหัสผ่าน',
+    'Change password': 'เปลี่ยนรหัสผ่าน',
+    'Asset Presets': 'พรีเซ็ตสินทรัพย์',
+    Symbol: 'Symbol',
+    'Add asset': 'เพิ่ม Asset',
+    'Field Options': 'ตัวเลือกฟิลด์',
+    'Reset to Default': 'รีเซ็ตเป็นค่าเริ่มต้น',
+    'Reset label': 'รีเซ็ตชื่อหัวข้อ',
+    'Add new option': 'เพิ่มตัวเลือกใหม่',
+    Rename: 'เปลี่ยนชื่อ',
+    Remove: 'ลบ',
+    'Micro Analytics': 'Micro Analytics',
+    'No data yet': 'ยังไม่มีข้อมูล',
+    'No week selected': 'ยังไม่ได้เลือกสัปดาห์',
+    Week: 'สัปดาห์',
+    'Not set': 'ยังไม่ได้ตั้งค่า',
+    'Set this in Settings': 'ตั้งค่านี้ใน Settings',
+    'Setup Needed': 'ต้องตั้งค่า Setup',
+    'No prop-firm limits yet': 'ยังไม่มีกฎ Prop Firm',
+    'Portfolio rules are active': 'กฎพอร์ตเปิดใช้งานแล้ว',
+    'Edit rules': 'แก้ไขกฎ',
+    'Daily review': 'รีวิวรายวัน',
+    'Repeat': 'ทำซ้ำ',
+    Reduce: 'ลด',
+    'No leak noted': 'ยังไม่พบจุดรั่วไหล',
+    'used': 'ใช้ไปแล้ว',
+    'Healthy': 'ปกติ',
+    'Watch': 'เฝ้าระวัง',
+    'Alert': 'แจ้งเตือน',
+    'Setup needed': 'ต้องตั้งค่า',
+    'Use this before adding size: target progress must rise while daily loss, drawdown, and contracts stay controlled.': 'ใช้ตรวจสอบก่อนเพิ่มขนาดการเทรด โดยให้ความคืบหน้าเป้ากำไรเพิ่มขึ้น และควบคุมขาดทุนรายวัน Drawdown และจำนวนสัญญาให้อยู่ในเกณฑ์',
+    'Add target, drawdown, daily loss, and max contracts in Settings to turn this into a live rule monitor.': 'เพิ่มเป้ากำไร Drawdown ขาดทุนรายวัน และจำนวนสัญญาสูงสุดใน Settings เพื่อเปิดใช้ตัวติดตามกฎแบบเรียลไทม์',
+    'Portfolios, presets, and customizable field options': 'พอร์ต พรีเซ็ต และตัวเลือกฟิลด์ที่ปรับแต่งได้',
+    'Upload 250x250': 'อัปโหลดรูป 250x250',
+    'No commission': 'ไม่มีค่าคอม',
+    'Fixed per trade': 'คงที่ต่อไม้',
+    'Per contract': 'ต่อสัญญา',
+    'Percent of gross P&L': 'เปอร์เซ็นต์ของ Gross P&L',
+    'Round trip': 'ไป-กลับ',
+    'Entry only': 'เฉพาะเข้า',
+    'Exit only': 'เฉพาะออก',
+    'Data Transfer': 'นำเข้า / ส่งออกข้อมูล',
+    'Choose CSV / JSON': 'เลือกไฟล์ CSV / JSON',
+    'Import data': 'นำเข้าข้อมูล',
+    'Export CSV': 'ส่งออก CSV',
+    'Copy data': 'คัดลอกข้อมูล',
+    'COPY TRADES & REVIEWS TO': 'คัดลอกเทรดและรีวิวไปยัง',
+    'JSON package includes trades and daily reviews. CSV import/export is trades only.': 'ไฟล์ JSON รวมข้อมูลเทรดและรีวิวรายวัน ส่วน CSV ใช้สำหรับข้อมูลเทรดเท่านั้น',
+    'No file selected': 'ยังไม่ได้เลือกไฟล์',
+    'No daily reviews yet': 'ยังไม่มีรีวิวรายวัน',
+    'Save reviews from Calendar to keep your newest lessons on the Dashboard.': 'บันทึกรีวิวจากหน้า Calendar เพื่อแสดงบทเรียนล่าสุดบน Dashboard',
+    'Open Calendar': 'เปิด Calendar',
+    'No portfolio commission': 'พอร์ตนี้ยังไม่ได้ตั้งค่าคอมมิชชัน',
+    'Miss trade: commission is 0': 'รายการ Miss จะไม่คิดค่าคอมมิชชัน',
+    'Portfolio template applied': 'นำค่าเทมเพลตพอร์ตไปใช้แล้ว',
+    'Options saved': 'บันทึกตัวเลือกแล้ว',
+    'Option already exists': 'ตัวเลือกนี้มีอยู่แล้ว',
+    'Asset saved': 'บันทึก Asset แล้ว',
+    'Asset deleted': 'ลบ Asset แล้ว',
+    'Profile saved': 'บันทึกโปรไฟล์แล้ว',
+    'Password changed': 'เปลี่ยนรหัสผ่านแล้ว',
+    'Trade saved': 'บันทึกเทรดแล้ว',
+    'Trade updated': 'อัปเดตเทรดแล้ว',
+    'Portfolio saved': 'บันทึกพอร์ตแล้ว',
+    'Portfolio created': 'สร้างพอร์ตแล้ว',
+    'Portfolio deleted': 'ลบพอร์ตแล้ว',
+    'Portfolio reset': 'รีเซ็ตพอร์ตแล้ว',
+    'สรุปข้อค้นพบอัตโนมัติ · Heatmap วัน×ชั่วโมง · คอมโบที่ชนะ/แพ้บ่อยที่สุด': 'สรุปข้อค้นพบอัตโนมัติ · Heatmap วัน×ชั่วโมง · คอมโบที่ชนะ/แพ้บ่อยที่สุด'
+  }
+};
+
+const I18nContext = React.createContext({ language: 'en', setLanguage: () => {}, t: (text) => text });
+const translate = (language, text) => {
+  if (text == null || typeof text !== 'string') return text;
+  return translations[language]?.[text] || text;
+};
+function useI18n() {
+  return React.useContext(I18nContext);
+}
+function LanguageSwitcher({ compact = false }) {
+  const { language, setLanguage, t } = useI18n();
+  return <div className={`language-switcher ${compact ? 'compact' : ''}`} aria-label={t('Language')}>
+    {!compact && <span>{t('Language')}</span>}
+    <div>
+      {languages.map((lang) => <button type="button" key={lang.code} className={language === lang.code ? 'active' : ''} onClick={() => setLanguage(lang.code)}>{compact ? lang.short : lang.label}</button>)}
+    </div>
+  </div>;
+}
+
 const money = (n) => Number.isFinite(Number(n)) ? `${Number(n) < 0 ? '-' : ''}$${Math.abs(Number(n)).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}` : '-';
 const pct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
 const fmtR = (n) => Number.isFinite(Number(n)) ? `${Number(n).toFixed(2)}R` : '-';
@@ -21,7 +269,7 @@ const fmtMinutes = (minutes) => {
   return hours ? `${hours}h ${mins}m` : `${mins}m`;
 };
 const today = () => new Date().toISOString().slice(0, 10);
-const profileContactLabels = { phone: 'Phone', email: 'E-mail', facebook: 'Facebook', line: 'ข้อความสถานะ' };
+const profileContactLabels = { phone: 'Phone', email: 'E-mail', facebook: 'Facebook', line: 'Status message' };
 
 function profileContact(profile = {}, fallbackEmail = '') {
   const type = profile.contactType || 'email';
@@ -861,6 +1109,7 @@ function groupBy(trades, key) {
 }
 
 function AuthScreen({ setSession }) {
+  const { t } = useI18n();
   const initialMode = location.pathname.includes('reset-password') ? 'reset' : location.pathname.includes('verify-email') ? 'verify' : 'login';
   const [mode, setMode] = useState(initialMode);
   const [username, setUsername] = useState('demo');
@@ -907,32 +1156,36 @@ function AuthScreen({ setSession }) {
     <form className="auth-card" onSubmit={submit}>
       <div className="mark">ZTJ</div>
       <h1>Mr.Z Trading Journal</h1>
-      <p>Trading journal for structure, execution, psychology, and edge review.</p>
+      <p>{t('Trading journal for structure, execution, psychology, and edge review.')}</p>
+      <LanguageSwitcher />
       <div className="segmented">
-        <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Login</button>
-        <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Sign up</button>
+        <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>{t('Login')}</button>
+        <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>{t('Sign up')}</button>
       </div>
-      {['login', 'register'].includes(mode) && <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>}
-      {['register', 'forgot'].includes(mode) && <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>}
-      {['verify', 'reset'].includes(mode) && <label>Token<input value={token} onChange={(e) => setToken(e.target.value)} /></label>}
-      {['login', 'register', 'reset'].includes(mode) && <label>Password<PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} visible={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>}
+      {['login', 'register'].includes(mode) && <label>{t('Username')}<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>}
+      {['register', 'forgot'].includes(mode) && <label>{t('Email')}<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>}
+      {['verify', 'reset'].includes(mode) && <label>{t('Token')}<input value={token} onChange={(e) => setToken(e.target.value)} /></label>}
+      {['login', 'register', 'reset'].includes(mode) && <label>{t('Password')}<PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} visible={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>}
       {error && <div className="error">{error}</div>}
       {message && <div className="success-box">{message}</div>}
-      <button className="primary" type="submit">{mode === 'login' ? 'Login' : mode === 'register' ? 'Create Account' : mode === 'forgot' ? 'Send reset link' : mode === 'verify' ? 'Verify email' : 'Reset password'}</button>
+      <button className="primary" type="submit">{t(mode === 'login' ? 'Login' : mode === 'register' ? 'Create Account' : mode === 'forgot' ? 'Send reset link' : mode === 'verify' ? 'Verify email' : 'Reset password')}</button>
       <div className="auth-links">
-        <button type="button" onClick={() => setMode('forgot')}>Forgot password</button>
-        <button type="button" onClick={() => setMode('verify')}>Verify email</button>
+        <button type="button" onClick={() => setMode('forgot')}>{t('Forgot password')}</button>
+        <button type="button" onClick={() => setMode('verify')}>{t('Verify email')}</button>
       </div>
     </form>
   </main>;
 }
 
 function PasswordInput({ value, onChange, visible, onToggle, autoComplete }) {
+  const { t } = useI18n();
   const Icon = visible ? EyeOff : Eye;
-  return <div className="password-input"><input type={visible ? 'text' : 'password'} value={value} onChange={onChange} autoComplete={autoComplete} /><button type="button" onClick={onToggle} aria-label={visible ? 'Hide password' : 'Show password'} title={visible ? 'Hide password' : 'Show password'}><Icon size={15} /></button></div>;
+  const label = visible ? 'Hide password' : 'Show password';
+  return <div className="password-input"><input type={visible ? 'text' : 'password'} value={value} onChange={onChange} autoComplete={autoComplete} /><button type="button" onClick={onToggle} aria-label={t(label)} title={t(label)}><Icon size={15} /></button></div>;
 }
 
 function App() {
+  const [language, setLanguageState] = useState(() => localStorage.getItem('ztj_language') || 'en');
   const [session, setSession] = useState(() => localStorage.getItem('etj_token') ? { token: localStorage.getItem('etj_token') } : null);
   const api = useApi(session?.token);
   const [currentUser, setCurrentUser] = useState(session?.user || null);
@@ -949,6 +1202,11 @@ function App() {
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState('');
   const [calendarFocusDate, setCalendarFocusDate] = useState('');
+  function setLanguage(nextLanguage) {
+    setLanguageState(nextLanguage);
+    localStorage.setItem('ztj_language', nextLanguage);
+  }
+  const i18n = useMemo(() => ({ language, setLanguage, t: (text) => translate(language, text) }), [language]);
 
   const scopedUserId = currentUser?.role === 'admin' && viewUserId ? viewUserId : null;
   const scopedApi = useMemo(() => (path, options = {}) => api(withUser(path, scopedUserId), options), [api, scopedUserId]);
@@ -978,9 +1236,10 @@ function App() {
   }, [page, currentUser?.role]);
   useEffect(() => { if (toast) { const id = setTimeout(() => setToast(''), 2200); return () => clearTimeout(id); } }, [toast]);
 
-  if (!session?.token) return <AuthScreen setSession={setSession} />;
+  if (!session?.token) return <I18nContext.Provider value={i18n}><AuthScreen setSession={setSession} /></I18nContext.Provider>;
   const account = accounts.find((a) => a.id === Number(accountId)) || accounts[0];
   const stats = computeStats(trades, account || 50000);
+  const t = i18n.t;
   const nav = [
     ['dashboard', LayoutDashboard, 'Dashboard'],
     ['log', Plus, editing ? 'Edit Trade' : 'Add Trade'],
@@ -995,20 +1254,21 @@ function App() {
     localStorage.removeItem('etj_token');
     setSession(null);
   }
-  return <div className="app-shell">
+  return <I18nContext.Provider value={i18n}><div className="app-shell">
     <aside className="sidebar">
       <div className="sidebar-top">
-        <div className="brand"><div className="mark small">ZTJ</div><div><b>Mr.Z Trading Journal</b><span>POI to outcome</span></div></div>
+        <div className="brand"><div className="mark small">ZTJ</div><div><b>Mr.Z Trading Journal</b><span>{t('POI to outcome')}</span></div></div>
         <ProfileCard user={currentUser} />
       </div>
-      <label className="mini-label">Portfolio {accounts.length}/{portfolioLimit}</label>
+      <LanguageSwitcher compact />
+      <label className="mini-label">{t('Portfolio')} {accounts.length}/{portfolioLimit}</label>
       <select value={accountId || ''} onChange={async (e) => { setAccountId(e.target.value); const data = await scopedApi(`/accounts/${e.target.value}/trades`); setTrades(data.trades); }}>
         {accounts.map((a) => <option value={a.id} key={a.id}>{a.name}</option>)}
       </select>
-      <nav>{nav.map(([id, Icon, label]) => <button key={id} className={page === id ? 'active' : ''} onClick={() => setPage(id)}><Icon size={17} />{label}</button>)}</nav>
+      <nav>{nav.map(([id, Icon, label]) => <button key={id} className={page === id ? 'active' : ''} onClick={() => setPage(id)}><Icon size={17} />{t(label)}</button>)}</nav>
       <div className="sidebar-foot">
-        <span>{trades.length} trades logged</span>
-        <button onClick={logout}><LogOut size={15} />Logout</button>
+        <span>{trades.length} {t('trades logged')}</span>
+        <button onClick={logout}><LogOut size={15} />{t('Logout')}</button>
       </div>
     </aside>
     <main className="workspace">
@@ -1022,10 +1282,11 @@ function App() {
       {page === 'coach' && <CoachPage api={api} token={session?.token} currentUser={currentUser} viewUserId={viewUserId} setViewUserId={(id) => { setViewUserId(id); setPage('dashboard'); }} portfolioTemplates={portfolioTemplates} setPortfolioTemplates={setPortfolioTemplates} setToast={setToast} />}
     </main>
     {toast && <div className="toast">{toast}</div>}
-  </div>;
+  </div></I18nContext.Provider>;
 }
 
 function ProfileCard({ user }) {
+  const { t } = useI18n();
   const profile = user?.profile || {};
   const contact = profileContact(profile, user?.email);
   const label = profileContactLabels[profile.contactType || 'email'] || 'Contact';
@@ -1033,12 +1294,13 @@ function ProfileCard({ user }) {
     <div className="profile-photo">{profile.image ? <img src={profile.image} alt="" /> : <UserRound size={84} strokeWidth={1.25} />}</div>
     <div className="profile-copy">
       <b>{profile.nickname || 'Nick Name'}</b>
-      <span>{contact || label}</span>
+      <span>{contact || t(label)}</span>
     </div>
   </div>;
 }
 
 function Dashboard({ api, accountId, trades, stats, account, openCalendar, setPage }) {
+  const { t } = useI18n();
   const [selectedWeek, setSelectedWeek] = useState('');
   const [dailyReviews, setDailyReviews] = useState({});
   const ledger = useMemo(() => computeLedger(trades, account || 50000), [trades, account]);
@@ -1138,7 +1400,7 @@ function Dashboard({ api, accountId, trades, stats, account, openCalendar, setPa
     }]
   };
   return <section>
-    <Header title="Dashboard" hint={`${account?.name || 'Account'} performance overview`} action={<button className="primary" onClick={() => setPage('log')}><Plus size={16} />Log trade</button>} />
+    <Header title="Dashboard" hint={`${account?.name || 'Account'} ${t('Backtest performance overview')}`} action={<button className="primary" onClick={() => setPage('log')}><Plus size={16} />{t('Log trade')}</button>} />
     <div className="kpi-grid">
       <Kpi label="Gross P&L" value={money(stats.gross)} tone={stats.gross >= 0 ? 'good' : 'bad'} />
       <Kpi label="Commission" value={money(stats.totalCommission)} />
@@ -1160,7 +1422,7 @@ function Dashboard({ api, accountId, trades, stats, account, openCalendar, setPa
       </Panel>
       <Panel title="Daily Results">
         <div className="panel-toolbar">
-          <span>{activeWeek ? `Week ${weekLabel(activeWeek)}` : 'No week selected'}</span>
+          <span>{activeWeek ? `${t('Week')} ${weekLabel(activeWeek)}` : t('No week selected')}</span>
           <select value={activeWeek} onChange={(e) => setSelectedWeek(e.target.value)} disabled={!dashboardWeeks.length}>
             {dashboardWeeks.map((week) => <option key={week} value={week}>{weekLabel(week)}</option>)}
           </select>
@@ -1173,7 +1435,7 @@ function Dashboard({ api, accountId, trades, stats, account, openCalendar, setPa
         <ChartWrap empty={!hourRows.length}><SmartChart type="bar" data={entryTimeChart} options={makeOptions('number', { scales: { y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: chartColors.muted, callback: (value) => money(value) } } } })} /></ChartWrap>
       </Panel>
       <Panel title="LTF Entry Receive">
-        <div className="table-wrap slim"><table><thead><tr><th>LTF Entry</th><th>Trades</th><th>Winrate</th><th>Avg RR</th><th>Avg Tick</th></tr></thead><tbody>{ltfRows.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtR(row.avgRr)}</td><td>{row.avgTick.toFixed(1)}</td></tr>)}</tbody></table></div>
+        <div className="table-wrap slim"><table><thead><tr><th>{t('LTF Entry')}</th><th>{t('Trades')}</th><th>{t('Winrate')}</th><th>{t('Avg RR')}</th><th>{t('Avg Tick')}</th></tr></thead><tbody>{ltfRows.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.trades}</td><td>{pct(row.winRate * 100)}</td><td>{fmtR(row.avgRr)}</td><td>{row.avgTick.toFixed(1)}</td></tr>)}</tbody></table></div>
         <div className="chart-subsection">
           <ChartWrap empty={!ltfRows.length}><SmartChart type="bar" data={ltfReceiveChart} options={makeOptions('number', { indexAxis: 'y', plugins: { legend: { display: false } } })} /></ChartWrap>
         </div>
@@ -1186,43 +1448,45 @@ function Dashboard({ api, accountId, trades, stats, account, openCalendar, setPa
 }
 
 function LatestReviewNotes({ rows, onOpenCalendar }) {
+  const { t } = useI18n();
   if (!rows.length) return <div className="review-empty">
-    <b>No daily reviews yet</b>
-    <span>Save reviews from Calendar to keep your newest lessons on the Dashboard.</span>
-    <button onClick={() => onOpenCalendar()}><CalendarDays size={15} />Open Calendar</button>
+    <b>{t('No daily reviews yet')}</b>
+    <span>{t('Save reviews from Calendar to keep your newest lessons on the Dashboard.')}</span>
+    <button onClick={() => onOpenCalendar()}><CalendarDays size={15} />{t('Open Calendar')}</button>
   </div>;
   return <div className="latest-reviews">
     {rows.map(({ date, review }) => <button type="button" key={date} onClick={() => onOpenCalendar(date)}>
       <span className="review-date">{shortDate(date)}</span>
-      <span><b>{review.summary || review.nextPlan || 'Daily review'}</b><small>Repeat: {review.repeat || '-'}</small></span>
-      <em>{review.reduce ? `Reduce: ${review.reduce}` : 'No leak noted'}</em>
+      <span><b>{review.summary || review.nextPlan || t('Daily review')}</b><small>{t('Repeat')}: {review.repeat || '-'}</small></span>
+      <em>{review.reduce ? `${t('Reduce')}: ${review.reduce}` : t('No leak noted')}</em>
     </button>)}
   </div>;
 }
 
 function PropFirmRulesPanel({ account, rules, setPage }) {
+  const { t } = useI18n();
   const hasRules = ['profitTarget', 'dailyLossLimit', 'maxDrawdown', 'trailingDrawdown', 'maxContracts'].some((key) => Number(account?.[key] || 0) > 0);
   return <Panel title="Prop Firm Rules">
     <div className="rule-control">
       <div className={`rule-status ${rules.tone}`}>
         <Gauge size={20} />
         <div>
-          <span>{rules.status}</span>
+          <span>{t(rules.status)}</span>
           <b>{money(rules.balance)}</b>
           <small>{account?.provider || 'Custom'} {account?.planName ? `· ${account.planName}` : ''}</small>
         </div>
       </div>
       <div className="rule-check-grid">
         {rules.checks.map((check) => <div className={`rule-check ${check.tone}`} key={check.label}>
-          <div className="rule-check-head"><span>{check.label}</span><b>{check.value}</b></div>
+          <div className="rule-check-head"><span>{t(check.label)}</span><b>{check.value}</b></div>
           <div className="rule-meter"><i style={{ width: `${check.percent}%` }} /></div>
-          <small>{check.value === 'Not set' ? 'Set this in Settings' : `${check.percent.toFixed(0)}% used`}</small>
+          <small>{check.value === 'Not set' ? t('Set this in Settings') : `${check.percent.toFixed(0)}% ${t('used')}`}</small>
         </div>)}
       </div>
       <div className="rule-notes">
-        <b>{hasRules ? 'Portfolio rules are active' : 'No prop-firm limits yet'}</b>
-        <span>{hasRules ? 'Use this before adding size: target progress must rise while daily loss, drawdown, and contracts stay controlled.' : 'Add target, drawdown, daily loss, and max contracts in Settings to turn this into a live rule monitor.'}</span>
-        <button onClick={() => setPage('settings')}><SlidersHorizontal size={15} />Edit rules</button>
+        <b>{hasRules ? t('Portfolio rules are active') : t('No prop-firm limits yet')}</b>
+        <span>{hasRules ? t('Use this before adding size: target progress must rise while daily loss, drawdown, and contracts stay controlled.') : t('Add target, drawdown, daily loss, and max contracts in Settings to turn this into a live rule monitor.')}</span>
+        <button onClick={() => setPage('settings')}><SlidersHorizontal size={15} />{t('Edit rules')}</button>
       </div>
     </div>
   </Panel>;
@@ -2296,6 +2560,7 @@ function JournalPage({ api, accountId }) {
 }
 
 function SettingsPage({ api, accounts, account, options, optionLabels, assets, portfolioLimit, portfolioTemplates, user, setCurrentUser, reload, setToast }) {
+  const { t } = useI18n();
   const [accountDraft, setAccountDraft] = useState(accountDraftFrom(account));
   const [templateId, setTemplateId] = useState('custom');
   const [optionDrafts, setOptionDrafts] = useState({});
@@ -2446,43 +2711,45 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
   function togglePassword(key) {
     setVisiblePasswords({ ...visiblePasswords, [key]: !visiblePasswords[key] });
   }
-  return <section><Header title="Settings" hint={`Portfolios, presets, and customizable field options (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />New portfolio</button>} />
+  return <section><Header title="Settings" hint={`${t('Portfolios, presets, and customizable field options')} (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />{t('New portfolio')}</button>} />
+    <Panel title="Language"><LanguageSwitcher /></Panel>
     <Panel title="Profile"><div className="profile-settings">
       <div className="profile-upload">
         <div className="profile-photo preview">{profile.image ? <img src={profile.image} alt="" /> : <UserRound size={96} strokeWidth={1.2} />}</div>
-        <label className="upload-button"><Upload size={15} />Upload 250x250<input type="file" accept="image/*" onChange={chooseProfileImage} /></label>
+        <label className="upload-button"><Upload size={15} />{t('Upload 250x250')}<input type="file" accept="image/*" onChange={chooseProfileImage} /></label>
       </div>
       <div className="profile-fields">
-        <div className="form-grid compact"><Field label="Nickname"><input value={profile.nickname || ''} onChange={(e) => setProfile({ ...profile, nickname: e.target.value })} placeholder="Nick Name" /></Field><Field label="Show contact"><select value={profile.contactType || 'email'} onChange={(e) => setProfile({ ...profile, contactType: e.target.value })}>{Object.entries(profileContactLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field></div>
-        <div className="form-grid compact"><Field label="Phone"><input value={profile.phone || ''} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} placeholder="Phone number" /></Field><Field label="E-mail"><input type="email" value={profile.email || ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder={user?.email || 'name@email.com'} /></Field><Field label="Facebook"><input value={profile.facebook || ''} onChange={(e) => setProfile({ ...profile, facebook: e.target.value })} placeholder="Facebook" /></Field><Field label="ข้อความสถานะ"><input value={profile.line || ''} onChange={(e) => setProfile({ ...profile, line: e.target.value })} placeholder="ข้อความสถานะ" /></Field></div>
-        <div className="profile-preview-line">Preview: <b>{profile.nickname || 'Nick Name'}</b><span>{profileContact(profile, user?.email) || profileContactLabels[profile.contactType || 'email']}</span></div>
-        <div className="actions"><button className="primary" onClick={saveProfile}><Save size={16} />Save profile</button></div>
+        <div className="form-grid compact"><Field label="Nickname"><input value={profile.nickname || ''} onChange={(e) => setProfile({ ...profile, nickname: e.target.value })} placeholder="Nick Name" /></Field><Field label="Show contact"><select value={profile.contactType || 'email'} onChange={(e) => setProfile({ ...profile, contactType: e.target.value })}>{Object.entries(profileContactLabels).map(([key, label]) => <option key={key} value={key}>{t(label)}</option>)}</select></Field></div>
+        <div className="form-grid compact"><Field label="Phone"><input value={profile.phone || ''} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} placeholder="Phone number" /></Field><Field label="E-mail"><input type="email" value={profile.email || ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder={user?.email || 'name@email.com'} /></Field><Field label="Facebook"><input value={profile.facebook || ''} onChange={(e) => setProfile({ ...profile, facebook: e.target.value })} placeholder="Facebook" /></Field><Field label="Status message"><input value={profile.line || ''} onChange={(e) => setProfile({ ...profile, line: e.target.value })} placeholder={t('Status message')} /></Field></div>
+        <div className="profile-preview-line">{t('Preview label')} <b>{profile.nickname || 'Nick Name'}</b><span>{profileContact(profile, user?.email) || t(profileContactLabels[profile.contactType || 'email'])}</span></div>
+        <div className="actions"><button className="primary" onClick={saveProfile}><Save size={16} />{t('Save profile')}</button></div>
       </div>
     </div></Panel>
-    <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="template-row"><Field label="Auto preset"><select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>{portfolioTemplates.map((template) => <option key={template.id || template.templateKey} value={String(template.id || template.templateKey)}>{template.label}</option>)}</select></Field><button onClick={applyTemplate}><SlidersHorizontal size={15} />Apply</button></div><div className="form-grid"><Field label="Name"><input value={accountDraft.name || ''} onChange={(e) => setAccountField('name', e.target.value)} /></Field><Field label="Provider"><input value={accountDraft.provider || ''} onChange={(e) => setAccountField('provider', e.target.value)} placeholder="Apex, MFF, TopStep, FTMO..." /></Field><Field label="Plan"><input value={accountDraft.planName || ''} onChange={(e) => setAccountField('planName', e.target.value)} placeholder="50K Evaluation" /></Field><Field label="Market"><input value={accountDraft.marketType || ''} onChange={(e) => setAccountField('marketType', e.target.value)} placeholder="Futures / Forex" /></Field><Field label="Type"><select value={accountDraft.type || 'live'} onChange={(e) => setAccountField('type', e.target.value)}><option value="backtest">backtest</option><option value="forward">forward</option><option value="live">live</option><option value="funded">funded</option></select></Field><Field label="Starting Balance"><input type="number" value={accountDraft.startingBalance || ''} onChange={(e) => setAccountField('startingBalance', e.target.value)} /></Field></div><div className="rule-grid"><Field label="Profit Target"><input type="number" value={accountDraft.profitTarget || ''} onChange={(e) => setAccountField('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={accountDraft.dailyLossLimit || ''} onChange={(e) => setAccountField('dailyLossLimit', e.target.value)} /></Field><Field label="Max Drawdown"><input type="number" value={accountDraft.maxDrawdown || ''} onChange={(e) => setAccountField('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={accountDraft.trailingDrawdown || ''} onChange={(e) => setAccountField('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={accountDraft.maxContracts || ''} onChange={(e) => setAccountField('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={accountDraft.minTradingDays || ''} onChange={(e) => setAccountField('minTradingDays', e.target.value)} /></Field></div><div className="form-grid compact"><Field label="Consistency Rule"><textarea value={accountDraft.consistencyRule || ''} onChange={(e) => setAccountField('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={accountDraft.payoutRule || ''} onChange={(e) => setAccountField('payoutRule', e.target.value)} /></Field></div><div className="fee-grid"><Field label="Commission type"><select value={accountDraft.commissionType || 'none'} onChange={(e) => setAccountField('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Amount"><input type="number" step="any" value={accountDraft.commissionAmount ?? ''} onChange={(e) => setAccountField('commissionAmount', e.target.value)} /></Field><Field label="Scope"><select value={accountDraft.commissionScope || 'roundTrip'} onChange={(e) => setAccountField('commissionScope', e.target.value)}><option value="roundTrip">Round trip</option><option value="entry">Entry only</option><option value="exit">Exit only</option></select></Field></div><Field label="Commission note"><input value={accountDraft.commissionNotes || ''} onChange={(e) => setAccountField('commissionNotes', e.target.value)} placeholder="Keep this synced with your broker statement" /></Field><div className="portfolio-summary"><span>{accountDraft.provider || 'Custom'} / {accountDraft.planName || 'Manual plan'}</span><b>{money(accountDraft.startingBalance || 0)}</b><small>{commissionTypeLabels[accountDraft.commissionType || 'none']} {accountDraft.commissionAmount ? `• ${accountDraft.commissionAmount}` : ''}</small></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />Save portfolio</button><button onClick={() => resetAccount(account.id)}>Reset</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />Delete</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
-    <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />Change password</button></div></Panel></div>
-    <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder="Symbol" /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />Add asset</button></div></Panel>
+    <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="template-row"><Field label="Auto preset"><select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>{portfolioTemplates.map((template) => <option key={template.id || template.templateKey} value={String(template.id || template.templateKey)}>{template.label}</option>)}</select></Field><button onClick={applyTemplate}><SlidersHorizontal size={15} />{t('Apply')}</button></div><div className="form-grid"><Field label="Name"><input value={accountDraft.name || ''} onChange={(e) => setAccountField('name', e.target.value)} /></Field><Field label="Provider"><input value={accountDraft.provider || ''} onChange={(e) => setAccountField('provider', e.target.value)} placeholder="Apex, MFF, TopStep, FTMO..." /></Field><Field label="Plan"><input value={accountDraft.planName || ''} onChange={(e) => setAccountField('planName', e.target.value)} placeholder="50K Evaluation" /></Field><Field label="Market"><input value={accountDraft.marketType || ''} onChange={(e) => setAccountField('marketType', e.target.value)} placeholder="Futures / Forex" /></Field><Field label="Type"><select value={accountDraft.type || 'live'} onChange={(e) => setAccountField('type', e.target.value)}><option value="backtest">backtest</option><option value="forward">forward</option><option value="live">live</option><option value="funded">funded</option></select></Field><Field label="Starting Balance"><input type="number" value={accountDraft.startingBalance || ''} onChange={(e) => setAccountField('startingBalance', e.target.value)} /></Field></div><div className="rule-grid"><Field label="Profit Target"><input type="number" value={accountDraft.profitTarget || ''} onChange={(e) => setAccountField('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={accountDraft.dailyLossLimit || ''} onChange={(e) => setAccountField('dailyLossLimit', e.target.value)} /></Field><Field label="Max Drawdown"><input type="number" value={accountDraft.maxDrawdown || ''} onChange={(e) => setAccountField('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={accountDraft.trailingDrawdown || ''} onChange={(e) => setAccountField('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={accountDraft.maxContracts || ''} onChange={(e) => setAccountField('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={accountDraft.minTradingDays || ''} onChange={(e) => setAccountField('minTradingDays', e.target.value)} /></Field></div><div className="form-grid compact"><Field label="Consistency Rule"><textarea value={accountDraft.consistencyRule || ''} onChange={(e) => setAccountField('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={accountDraft.payoutRule || ''} onChange={(e) => setAccountField('payoutRule', e.target.value)} /></Field></div><div className="fee-grid"><Field label="Commission type"><select value={accountDraft.commissionType || 'none'} onChange={(e) => setAccountField('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></Field><Field label="Amount"><input type="number" step="any" value={accountDraft.commissionAmount ?? ''} onChange={(e) => setAccountField('commissionAmount', e.target.value)} /></Field><Field label="Scope"><select value={accountDraft.commissionScope || 'roundTrip'} onChange={(e) => setAccountField('commissionScope', e.target.value)}><option value="roundTrip">{t('Round trip')}</option><option value="entry">{t('Entry only')}</option><option value="exit">{t('Exit only')}</option></select></Field></div><Field label="Commission note"><input value={accountDraft.commissionNotes || ''} onChange={(e) => setAccountField('commissionNotes', e.target.value)} placeholder="Keep this synced with your broker statement" /></Field><div className="portfolio-summary"><span>{accountDraft.provider || 'Custom'} / {accountDraft.planName || 'Manual plan'}</span><b>{money(accountDraft.startingBalance || 0)}</b><small>{t(commissionTypeLabels[accountDraft.commissionType || 'none'])} {accountDraft.commissionAmount ? `• ${accountDraft.commissionAmount}` : ''}</small></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />{t('Save portfolio')}</button><button onClick={() => resetAccount(account.id)}>{t('Reset')}</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />{t('Delete')}</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
+    <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />{t('Change password')}</button></div></Panel></div>
+    <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder={t('Symbol')} /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1 }])}><Plus size={16} />{t('Add asset')}</button></div></Panel>
     <DataTransferPanel api={api} accounts={accounts} account={account} reload={reload} setToast={setToast} /></div>
     <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, values]) => <div className="option-card" key={key}>
       <div className="option-card-head">
         <h3>{optionLabelDrafts[key] || defaultOptionLabels[key] || key}</h3>
-        <button onClick={() => renameOptionLabel(key)} disabled={savingOption === key}><Pencil size={14} />เปลี่ยนชื่อ</button>
+        <button onClick={() => renameOptionLabel(key)} disabled={savingOption === key}><Pencil size={14} />{t('Rename')}</button>
       </div>
       <div className="option-chip-grid">
-        {(values || []).map((value) => <span className="option-chip" key={value}><b>{value}</b><button aria-label={`Remove ${value}`} title={`Remove ${value}`} onClick={() => removeOptionValue(key, value)} disabled={savingOption === key}><X size={15} /></button></span>)}
+        {(values || []).map((value) => <span className="option-chip" key={value}><b>{value}</b><button aria-label={`${t('Remove')} ${value}`} title={`${t('Remove')} ${value}`} onClick={() => removeOptionValue(key, value)} disabled={savingOption === key}><X size={15} /></button></span>)}
       </div>
       <div className="option-add-row">
-        <input value={optionInputs[key] || ''} onChange={(e) => setOptionInputs({ ...optionInputs, [key]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addOptionValue(key); }} placeholder="เพิ่มตัวเลือกใหม่" />
-        <button onClick={() => addOptionValue(key)} disabled={savingOption === key || !String(optionInputs[key] || '').trim()}><Plus size={15} />Add</button>
+        <input value={optionInputs[key] || ''} onChange={(e) => setOptionInputs({ ...optionInputs, [key]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addOptionValue(key); }} placeholder={t('Add new option')} />
+        <button onClick={() => addOptionValue(key)} disabled={savingOption === key || !String(optionInputs[key] || '').trim()}><Plus size={15} />{t('Add')}</button>
       </div>
       <div className="option-reset-row">
-        <button onClick={() => resetOptionValues(key)} disabled={savingOption === key}><RotateCcw size={14} />Reset to Default</button>
-        <button onClick={() => resetOptionLabel(key)} disabled={savingOption === key}><RotateCcw size={14} />Reset ชื่อหัวข้อ</button>
+        <button onClick={() => resetOptionValues(key)} disabled={savingOption === key}><RotateCcw size={14} />{t('Reset to Default')}</button>
+        <button onClick={() => resetOptionLabel(key)} disabled={savingOption === key}><RotateCcw size={14} />{t('Reset label')}</button>
       </div>
     </div>)}</div></Panel></section>;
 }
 
 function DataTransferPanel({ api, accounts, account, reload, setToast }) {
+  const { t } = useI18n();
   const [fileName, setFileName] = useState('');
   const [importText, setImportText] = useState('');
   const [preview, setPreview] = useState(null);
@@ -2645,24 +2912,24 @@ function DataTransferPanel({ api, accounts, account, reload, setToast }) {
   return <Panel title="Data Transfer">
     <div className="transfer-panel">
       <div className="transfer-actions">
-        <label className="upload-button"><Upload size={15} />Choose CSV / JSON<input type="file" accept=".csv,.json,application/json,text/csv" onChange={chooseFile} /></label>
-        <button onClick={previewImport} disabled={!importText || busy === 'preview'}><FileText size={15} />Preview</button>
-        <button className="primary" onClick={importTrades} disabled={!canImportPreview || busy === 'import'}><Upload size={15} />Import data</button>
+        <label className="upload-button"><Upload size={15} />{t('Choose CSV / JSON')}<input type="file" accept=".csv,.json,application/json,text/csv" onChange={chooseFile} /></label>
+        <button onClick={previewImport} disabled={!importText || busy === 'preview'}><FileText size={15} />{t('Preview')}</button>
+        <button className="primary" onClick={importTrades} disabled={!canImportPreview || busy === 'import'}><Upload size={15} />{t('Import data')}</button>
       </div>
-      <small className="transfer-note">JSON package includes trades and daily reviews. CSV import/export is trades only.</small>
+      <small className="transfer-note">{t('JSON package includes trades and daily reviews. CSV import/export is trades only.')}</small>
       <div className="transfer-status">
-        <span>{fileName || 'No file selected'}</span>
+        <span>{fileName || t('No file selected')}</span>
         {preview && <b>{preview.ready} ready · {preview.duplicate} duplicate · {preview.error} error{preview.reviews ? ` · ${preview.reviews} reviews` : ''}</b>}
       </div>
       {preview?.preview?.length > 0 && <div className="table-wrap slim transfer-preview"><table><thead><tr><th>Status</th><th>Date</th><th>Asset</th><th>Session</th><th>Result</th><th>P&L</th></tr></thead><tbody>{preview.preview.map((row) => <tr key={row.index} className={row.status === 'error' ? 'invalid' : row.status === 'duplicate' ? 'muted-row' : ''}><td><b>{row.status}</b><small>{row.error || ''}</small></td><td>{row.trade.date || '-'}</td><td>{row.trade.asset || '-'}</td><td>{row.trade.session || '-'}</td><td>{row.trade.result || '-'}</td><td className={Number(row.trade.pnl || 0) >= 0 ? 'pos' : 'neg'}>{money(row.trade.pnl || 0)}</td></tr>)}</tbody></table></div>}
       <div className="transfer-split">
         <div className="transfer-export">
-          <button onClick={exportPortfolio} disabled={busy === 'export'}><Download size={15} />Export JSON</button>
-          <button onClick={exportPortfolioCsv} disabled={busy === 'csv'}><Download size={15} />Export CSV</button>
+          <button onClick={exportPortfolio} disabled={busy === 'export'}><Download size={15} />{t('Export JSON')}</button>
+          <button onClick={exportPortfolioCsv} disabled={busy === 'csv'}><Download size={15} />{t('Export CSV')}</button>
         </div>
         <div className="transfer-copy">
-          <Field label="Copy trades & reviews to"><select value={targetAccountId} onChange={(e) => setTargetAccountId(e.target.value)} disabled={!otherAccounts.length}>{otherAccounts.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field>
-          <button onClick={transferAll} disabled={!targetAccountId || busy === 'transfer'}><Upload size={15} />Copy data</button>
+          <Field label="COPY TRADES & REVIEWS TO"><select value={targetAccountId} onChange={(e) => setTargetAccountId(e.target.value)} disabled={!otherAccounts.length}>{otherAccounts.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field>
+          <button onClick={transferAll} disabled={!targetAccountId || busy === 'transfer'}><Upload size={15} />{t('Copy data')}</button>
         </div>
       </div>
     </div>
@@ -2819,10 +3086,22 @@ function TemplateManager({ templates, setTemplates, api, setToast }) {
   </div></Panel>;
 }
 
-function Header({ title, hint, action }) { return <div className="page-head"><div><h1>{title}</h1><p>{hint}</p></div>{action}</div>; }
-function Panel({ title, children }) { return <div className="panel"><div className="panel-title">{title}</div>{children}</div>; }
-function Kpi({ label, value, tone }) { return <div className={`kpi ${tone || ''}`}><span>{label}</span><b>{value}</b></div>; }
-function Field({ label, children }) { return <label className="field"><span>{label}</span>{children}</label>; }
+function Header({ title, hint, action }) {
+  const { t } = useI18n();
+  return <div className="page-head"><div><h1>{t(title)}</h1><p>{t(hint)}</p></div>{action}</div>;
+}
+function Panel({ title, children }) {
+  const { t } = useI18n();
+  return <div className="panel"><div className="panel-title">{t(title)}</div>{children}</div>;
+}
+function Kpi({ label, value, tone }) {
+  const { t } = useI18n();
+  return <div className={`kpi ${tone || ''}`}><span>{t(label)}</span><b>{value}</b></div>;
+}
+function Field({ label, children }) {
+  const { t } = useI18n();
+  return <label className="field"><span>{t(label)}</span>{children}</label>;
+}
 function Select({ options = [], value, onChange }) { return <select value={value || ''} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o}>{o}</option>)}</select>; }
 function ChartWrap({ empty, children, tall = false }) { return <div className={`chart-wrap ${tall ? 'tall' : ''}`}>{empty ? <div className="empty">No data yet</div> : children}</div>; }
 
