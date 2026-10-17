@@ -442,15 +442,15 @@ const defaultOptions = [
 ];
 
 const defaultAssets = [
-  ['NQ1', 0.25, 5],
-  ['MNQ1', 0.25, 0.5],
-  ['MGC1', 0.1, 1],
-  ['GC1', 0.1, 10],
-  ['XAUUSD', 0.01, 1],
-  ['MES1', 0.25, 1.25],
-  ['ES1', 0.25, 12.5],
-  ['MYM1', 1, 0.5],
-  ['MCL1', 0.01, 1]
+  ['NQ1', 0.25, 5, 4.68],
+  ['MNQ1', 0.25, 0.5, 0],
+  ['MGC1', 0.1, 1, 0],
+  ['GC1', 0.1, 10, 0],
+  ['XAUUSD', 0.01, 1, 0],
+  ['MES1', 0.25, 1.25, 0],
+  ['ES1', 0.25, 12.5, 0],
+  ['MYM1', 1, 0.5, 0],
+  ['MCL1', 0.01, 1, 0]
 ];
 
 async function ensureUserDefaults(userId) {
@@ -460,8 +460,8 @@ async function ensureUserDefaults(userId) {
   }
   const count = Number((await get('SELECT COUNT(*) count FROM asset_presets WHERE user_id=?', [userId])).count);
   if (!count) {
-    for (const [index, [symbol, tickSize, dollarPerPoint]] of defaultAssets.entries()) {
-      await run('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, sort_order) VALUES (?, ?, ?, ?, ?)', [userId, symbol, tickSize, dollarPerPoint, index + 1]);
+    for (const [index, [symbol, tickSize, dollarPerPoint, commissionAmount]] of defaultAssets.entries()) {
+      await run('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, commission_amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)', [userId, symbol, tickSize, dollarPerPoint, commissionAmount, index + 1]);
     }
   }
 }
@@ -827,7 +827,7 @@ app.put('/api/options/:fieldKey', auth, asyncHandler(async (req, res) => {
 app.get('/api/assets', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
   await ensureUserDefaults(userId);
-  const assets = await all('SELECT id, symbol, tick_size "tickSize", dollar_per_point "dollarPerPoint", sort_order "sortOrder" FROM asset_presets WHERE user_id=? ORDER BY sort_order, symbol', [userId]);
+  const assets = await all('SELECT id, symbol, tick_size "tickSize", dollar_per_point "dollarPerPoint", commission_amount "commissionAmount", sort_order "sortOrder" FROM asset_presets WHERE user_id=? ORDER BY sort_order, symbol', [userId]);
   res.json({ assets });
 }));
 
@@ -836,24 +836,26 @@ app.post('/api/assets', auth, asyncHandler(async (req, res) => {
   const count = Number((await get('SELECT COUNT(*) count FROM asset_presets WHERE user_id=?', [userId])).count);
   const symbol = String(req.body.symbol || '').trim().toUpperCase();
   if (!symbol) return res.status(400).json({ error: 'Asset symbol is required' });
-  const id = await insert('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, sort_order) VALUES (?, ?, ?, ?, ?)', [
+  const id = await insert('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, commission_amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)', [
     userId,
     symbol,
     Number(req.body.tickSize || 1),
     Number(req.body.dollarPerPoint || 1),
+    Math.max(0, Number(req.body.commissionAmount || 0)),
     count + 1
   ]);
-  res.json({ asset: await get('SELECT id, symbol, tick_size "tickSize", dollar_per_point "dollarPerPoint", sort_order "sortOrder" FROM asset_presets WHERE id=?', [id]) });
+  res.json({ asset: await get('SELECT id, symbol, tick_size "tickSize", dollar_per_point "dollarPerPoint", commission_amount "commissionAmount", sort_order "sortOrder" FROM asset_presets WHERE id=?', [id]) });
 }));
 
 app.put('/api/assets/:id', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
   const symbol = String(req.body.symbol || '').trim().toUpperCase();
   if (!symbol) return res.status(400).json({ error: 'Asset symbol is required' });
-  await run('UPDATE asset_presets SET symbol=?, tick_size=?, dollar_per_point=? WHERE id=? AND user_id=?', [
+  await run('UPDATE asset_presets SET symbol=?, tick_size=?, dollar_per_point=?, commission_amount=? WHERE id=? AND user_id=?', [
     symbol,
     Number(req.body.tickSize || 1),
     Number(req.body.dollarPerPoint || 1),
+    Math.max(0, Number(req.body.commissionAmount || 0)),
     req.params.id,
     userId
   ]);
@@ -1310,3 +1312,4 @@ app.use((err, req, res, next) => {
 app.listen(port, () => {
   console.log(`API listening on http://127.0.0.1:${port}`);
 });
+
