@@ -377,6 +377,16 @@ function normalizeImportedTrade(row) {
     poiType: pickValue(row, ['poiType', 'poi_type']),
     poiHasFvg: pickValue(row, ['poiHasFvg', 'poi_has_fvg']),
     fvgPosition: pickValue(row, ['fvgPosition', 'fvg_position']),
+    receivePoint: (() => {
+      const value = pickValue(row, ['receivePoint', 'receive_point']);
+      if (Array.isArray(value)) return value;
+      try {
+        const parsed = JSON.parse(value || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })(),
     liquiditySweep: pickValue(row, ['liquiditySweep', 'liquidity_sweep']),
     bos: pickValue(row, ['bos', 'BOS']),
     choch: pickValue(row, ['choch', 'CHoCH']),
@@ -1057,7 +1067,7 @@ const tradeColumns = [
   'tp_ticks','sl_ticks','tick_size','dollar_per_point','planned_r','actual_r','max_r','max_tick','mfe_r','mae_r','risk_amount','lot_size','gross_pnl','commission_amount','net_pnl','pnl','sl_amount',
   'tp_amount','tp_percent','balance_after','con_loss','sum_con_loss_amount','dd_loss_pct','sum_dd_loss_pct','result','picture_url','tip_url',
   'htf_bias','htf_poi','poi_type','poi_has_fvg','fvg_position',
-  'liquidity_sweep','bos','choch','mtf_structure','ltf_entry','key_zone','setup_grade','setup_score','rule_violation','emotion_before','emotion_after',
+  'receive_point','liquidity_sweep','bos','choch','mtf_structure','ltf_entry','key_zone','setup_grade','setup_score','rule_violation','emotion_before','emotion_after',
   'discipline_score','chart_htf','chart_mtf','chart_ltf','notes'
 ];
 
@@ -1108,6 +1118,7 @@ function normalizeTrade(body) {
     poi_type: b.poiType || null,
     poi_has_fvg: boolValue(b.poiHasFvg),
     fvg_position: b.fvgPosition || null,
+    receive_point: JSON.stringify(Array.isArray(b.receivePoint) ? b.receivePoint : []),
     liquidity_sweep: boolValue(b.liquiditySweep),
     bos: boolValue(b.bos),
     choch: boolValue(b.choch),

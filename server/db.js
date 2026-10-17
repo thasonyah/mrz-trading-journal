@@ -171,6 +171,14 @@ export function rowToTrade(row) {
     poiType: row.poi_type,
     poiHasFvg: Boolean(row.poi_has_fvg),
     fvgPosition: row.fvg_position,
+    receivePoint: (() => {
+      try {
+        const value = JSON.parse(row.receive_point || '[]');
+        return Array.isArray(value) ? value : [];
+      } catch {
+        return [];
+      }
+    })(),
     liquiditySweep: Boolean(row.liquidity_sweep),
     bos: Boolean(row.bos),
     choch: Boolean(row.choch),

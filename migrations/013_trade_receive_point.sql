@@ -1,0 +1,1 @@
+ALTER TABLE trades ADD COLUMN receive_point TEXT NOT NULL DEFAULT '[]';

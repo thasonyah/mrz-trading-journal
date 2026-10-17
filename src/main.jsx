@@ -693,7 +693,7 @@ const blankTrade = {
   date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'CANDLE + CODE', entryTime: '06:00', exitTime: '',
   durationTime: '', orderWaitMinutes: '', entryPrice: '', stopLoss: '', takeProfit: '', tpTicks: '', slTicks: '',
   tickSize: 0.25, dollarPerPoint: 20, lotSize: '', commissionAmount: '',
-  riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: false,
+  riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: false, receivePoint: [],
   fvgPosition: '', liquiditySweep: false, bos: false, choch: false, mtfStructure: 'BOS',
   ltfEntry: 'OB + FVG', keyZone: 'None', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
   ruleViolation: 'None', emotionBefore: 'Calm', emotionAfter: 'Confident', disciplineScore: 90,
@@ -1637,6 +1637,14 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
         </div>
         <div className="checks">
           {['poiHasFvg','liquiditySweep','bos','choch'].map((key) => <label key={key}><input type="checkbox" checked={!!form[key]} onChange={(e) => set(key, e.target.checked)} />{key.replace(/([A-Z])/g, ' $1')}</label>)}
+        </div>
+        <div className="checks receive-point-checks">
+          <span className="check-group-label">จุดรับ</span>
+          {['FirstOB', 'MiddleOB', 'LastOB'].map((point) => <label key={point}><input type="checkbox" checked={Array.isArray(form.receivePoint) && form.receivePoint.includes(point)} onChange={(e) => {
+            const current = new Set(Array.isArray(form.receivePoint) ? form.receivePoint : []);
+            if (e.target.checked) current.add(point); else current.delete(point);
+            set('receivePoint', [...current]);
+          }} />{point}</label>)}
         </div>
       </Panel>
       <Panel title="Grade, Excursion, Psychology">
