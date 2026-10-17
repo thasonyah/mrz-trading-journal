@@ -21,12 +21,12 @@ if (exists) {
 
 const defaultOptions = [
   ['session', 'Session', ['AS', 'LO', 'NY', 'LC']],
-  ['mode', 'Mode', ['BOSe', 'CHe', 'Flip']],
+  ['mode', 'Mode', ['CANDLE + CODE', 'BOSe', 'CHe', 'Flip']],
   ['htfBias', 'HTF Bias', ['Bullish', 'Bearish', 'Neutral']],
   ['htfPoi', 'HTF POI', ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount']],
   ['mtfStructure', 'MTF Structure', ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range']],
   ['ltfEntry', 'LTF Entry', ['OB', 'FVG', 'OB + FVG', 'Breaker', 'Mitigation']],
-  ['keyZone', 'Key Zone', ['Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM']],
+  ['keyZone', 'Key Zone', ['None', 'Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM']],
   ['ruleViolation', 'Rule Violation', ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price']],
   ['emotion', 'Emotion', ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']]
 ];
@@ -67,8 +67,8 @@ await transaction(async (dbx) => {
   for (const [key, label, options] of defaultOptions) {
     await dbx.run('INSERT INTO option_sets (user_id, field_key, label, options_json) VALUES (?, ?, ?, ?)', [userId, key, label, JSON.stringify(options)]);
   }
-  for (const [index, [symbol, tickSize, dollarPerPoint, commissionAmount]] of defaultAssets.entries()) {
-    await dbx.run('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, commission_amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)', [userId, symbol, tickSize, dollarPerPoint, commissionAmount, index + 1]);
+  for (const [index, [symbol, tickSize, dollarPerPoint]] of defaultAssets.entries()) {
+    await dbx.run('INSERT INTO asset_presets (user_id, symbol, tick_size, dollar_per_point, sort_order) VALUES (?, ?, ?, ?, ?)', [userId, symbol, tickSize, dollarPerPoint, index + 1]);
   }
 
   const tradeSql = `
@@ -96,4 +96,3 @@ await transaction(async (dbx) => {
 });
 
 console.log('Seeded demo user: demo / demo123');
-

@@ -118,6 +118,13 @@ const translations = {
     'MFE / MAE': 'MFE / MAE',
     'Rule Violation': 'ผิดกฎ',
     'Emotion After': 'อารมณ์หลังเทรด',
+    Calm: 'สงบ',
+    Confident: 'มั่นใจ',
+    Anxious: 'กังวล',
+    Frustrated: 'หงุดหงิด',
+    Greedy: 'โลภ',
+    Impatient: 'ใจร้อน',
+    Regretful: 'เสียใจ/เสียดาย',
     Reflection: 'บันทึกทบทวน',
     'Chart Journal': 'Chart Journal',
     'HTF Chart URL': 'ลิงก์กราฟ HTF',
@@ -236,6 +243,18 @@ const translations = {
     'Portfolio created': 'สร้างพอร์ตแล้ว',
     'Portfolio deleted': 'ลบพอร์ตแล้ว',
     'Portfolio reset': 'รีเซ็ตพอร์ตแล้ว',
+    'TradingView Auto Sync': 'ซิงก์อัตโนมัติกับ TradingView',
+    'Webhook name': 'ชื่อ Webhook',
+    'Target portfolio': 'พอร์ตปลายทาง',
+    'Create webhook': 'สร้าง Webhook',
+    'Copy this URL now': 'คัดลอก URL นี้ตอนนี้',
+    'Copy URL': 'คัดลอก URL',
+    'Copy JSON': 'คัดลอก JSON',
+    'Disable': 'ปิดใช้งาน',
+    'Enable': 'เปิดใช้งาน',
+    'Rotate': 'หมุน Token ใหม่',
+    'TradingView Alert sends a completed trade as JSON to your selected portfolio. Set a unique event_id to prevent duplicates.': 'TradingView Alert จะส่งรายการเทรดที่ปิดแล้วเป็น JSON ไปยังพอร์ตที่เลือก กำหนด event_id ให้ไม่ซ้ำเพื่อป้องกันรายการซ้ำ',
+    'TradingView webhooks require HTTPS and TradingView 2FA. This integration imports completed records; it does not place orders.': 'TradingView Webhook ต้องใช้ HTTPS และเปิด 2FA ระบบนี้นำเข้ารายการที่ปิดแล้วเท่านั้น ไม่ได้ส่งคำสั่งซื้อขาย',
     'สรุปข้อค้นพบอัตโนมัติ · Heatmap วัน×ชั่วโมง · คอมโบที่ชนะ/แพ้บ่อยที่สุด': 'สรุปข้อค้นพบอัตโนมัติ · Heatmap วัน×ชั่วโมง · คอมโบที่ชนะ/แพ้บ่อยที่สุด'
   }
 };
@@ -567,12 +586,12 @@ const defaultAssets = [
 
 const defaultOptions = {
   session: ['AS', 'LO', 'NY', 'LC'],
-  mode: ['BOSe', 'CHe', 'Flip'],
+  mode: ['CANDLE + CODE', 'BOSe', 'CHe', 'Flip'],
   htfBias: ['Bullish', 'Bearish', 'Neutral'],
   htfPoi: ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount'],
   mtfStructure: ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range'],
   ltfEntry: ['OB', 'FVG', 'OB + FVG', 'Breaker', 'Mitigation'],
-  keyZone: ['Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM'],
+  keyZone: ['None', 'Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM'],
   ruleViolation: ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price'],
   emotion: ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']
 };
@@ -671,12 +690,12 @@ function accountDraftFrom(account = {}) {
 }
 
 const blankTrade = {
-  date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'BOSe', entryTime: '06:00', exitTime: '',
+  date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'CANDLE + CODE', entryTime: '06:00', exitTime: '',
   durationTime: '', orderWaitMinutes: '', entryPrice: '', stopLoss: '', takeProfit: '', tpTicks: '', slTicks: '',
   tickSize: 0.25, dollarPerPoint: 20, lotSize: '', commissionAmount: '',
-  riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: true,
-  fvgPosition: 'Middle of OB', liquiditySweep: true, bos: true, choch: false, mtfStructure: 'BOS',
-  ltfEntry: 'OB + FVG', keyZone: 'Discount', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
+  riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: false,
+  fvgPosition: '', liquiditySweep: false, bos: false, choch: false, mtfStructure: 'BOS',
+  ltfEntry: 'OB + FVG', keyZone: 'None', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
   ruleViolation: 'None', emotionBefore: 'Calm', emotionAfter: 'Confident', disciplineScore: 90,
   chartHtf: '', chartMtf: '', chartLtf: '', pictureUrl: '', tipUrl: '', notes: ''
 };
@@ -753,12 +772,13 @@ function commissionForTrade(trade, grossPnl, account, assetPreset) {
   const type = account?.commissionType || 'none';
   if (trade.commissionAmount !== '' && trade.commissionAmount != null && (Number(trade.commissionAmount) > 0 || type === 'none')) return Number(trade.commissionAmount) || 0;
   const amount = Number(account?.commissionAmount || 0);
+  if (amount && type !== 'none') {
+    if (type === 'fixed') return amount;
+    if (type === 'perContract') return amount * (Number(trade.lotSize || trade.suggestedLot || 0) || 0);
+    if (type === 'percent') return Math.abs(Number(grossPnl || 0)) * (amount / 100);
+  }
   const assetAmount = Number(assetPreset?.commissionAmount || 0);
-  if ((!amount || type === 'none') && assetAmount > 0) return assetAmount * (Number(trade.lotSize || trade.suggestedLot || 0) || 0);
-  if (!amount || type === 'none') return 0;
-  if (type === 'fixed') return amount;
-  if (type === 'perContract') return amount * (Number(trade.lotSize || trade.suggestedLot || 0) || 0);
-  if (type === 'percent') return Math.abs(Number(grossPnl || 0)) * (amount / 100);
+  if (assetAmount > 0) return assetAmount * (Number(trade.lotSize || trade.suggestedLot || 0) || 0);
   return 0;
 }
 
@@ -1226,7 +1246,8 @@ function App() {
     setPortfolioTemplates(templateData.templates?.length ? templateData.templates : fallbackPortfolioTemplates);
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
-    setOptions({ ...defaultOptions, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options])) });
+    const loadedOptions = Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options]));
+    setOptions(Object.fromEntries(Object.entries(defaultOptions).map(([key, defaults]) => [key, [...new Set([...(defaults || []), ...(loadedOptions[key] || [])])]])));
     setOptionLabels({ ...defaultOptionLabels, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.label || defaultOptionLabels[x.fieldKey] || x.fieldKey])) });
     if (active) {
       const data = await scopedApi(`/accounts/${active}/trades`);
@@ -1500,9 +1521,10 @@ function PropFirmRulesPanel({ account, rules, setPage }) {
 }
 
 function TradeForm({ api, accountId, account, trades, options, assets, editing, setEditing, reload, setToast }) {
+  const { t } = useI18n();
   const [form, setForm] = useState(editing || blankTrade);
   useEffect(() => setForm(editing || blankTrade), [editing]);
-  const assetPreset = assets.find((asset) => asset.symbol === form.asset) || defaultAssets.find((asset) => asset.symbol === form.asset);
+  const assetPreset = assets.find((asset) => asset.symbol === form.asset);
   const calc = enrichTrade(form, account, assetPreset);
   const projectedRules = useMemo(() => {
     const nextTrade = { ...form, id: editing?.id };
@@ -1512,14 +1534,24 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
     return computePropRules(projectedTrades, account || 50000);
   }, [form, editing, trades, account]);
   const activeRuleChecks = projectedRules.checks.filter((check) => check.enabled);
+  const accountCommissionRate = account?.commissionType && account.commissionType !== 'none'
+    ? Number(account.commissionAmount || 0)
+    : 0;
+  const assetCommissionRate = Number(assetPreset?.commissionAmount || 0);
+  const autoCommissionRate = accountCommissionRate > 0 ? accountCommissionRate : assetCommissionRate;
+  const autoCommissionUnit = accountCommissionRate > 0
+    ? (account?.commissionType === 'perContract' ? ' / contract' : account?.commissionType === 'percent' ? ' / %' : '')
+    : assetCommissionRate > 0 ? ' / contract' : '';
   const commissionInputValue = form.result === 'miss'
     ? 0
-    : (form.commissionAmount !== '' && form.commissionAmount != null ? form.commissionAmount : (account?.commissionType && account.commissionType !== 'none' && Number(account.commissionAmount || 0) > 0 ? account.commissionAmount : (assetPreset?.commissionAmount || calc.commissionAmount || '')));
+    : (form.commissionAmount !== '' && form.commissionAmount != null ? form.commissionAmount : (autoCommissionRate || calc.commissionAmount || ''));
   const commissionHint = form.result === 'miss'
     ? 'Miss trade: commission is 0'
     : account?.commissionType && account.commissionType !== 'none'
       ? `Auto from ${account.name || 'portfolio'}: ${commissionTypeLabels[account.commissionType]}`
-      : assetPreset?.commissionAmount > 0 ? `Auto from ${assetPreset.symbol}: per contract` : 'No portfolio commission';
+      : assetPreset?.commissionAmount > 0
+        ? `Auto from ${assetPreset.symbol}: per contract`
+        : 'No portfolio or asset commission';
   function set(key, value) {
     let next = { ...form, [key]: value };
     if (key === 'asset') {
@@ -1561,7 +1593,7 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
           <Field label="Stop"><input type="number" step="any" value={form.stopLoss} onChange={(e) => set('stopLoss', e.target.value)} /></Field>
           <Field label="Target"><input type="number" step="any" value={form.takeProfit} onChange={(e) => set('takeProfit', e.target.value)} /></Field>
           <Field label="$ / point"><input type="number" step="any" value={form.dollarPerPoint} onChange={(e) => set('dollarPerPoint', e.target.value)} /></Field>
-          <Field label="Commission"><input type="number" step="any" value={commissionInputValue} onChange={(e) => set('commissionAmount', e.target.value)} placeholder="0" disabled={form.result === 'miss'} /><small className="field-hint">{commissionHint}</small></Field>
+          <Field label="Commission"><input type="number" step="any" value={commissionInputValue} onChange={(e) => set('commissionAmount', e.target.value)} placeholder="0" disabled={form.result === 'miss'} /><small className="field-hint">{commissionHint}{autoCommissionUnit}</small></Field>
         </div>
         <div className="risk-strip">
           <Kpi label="Planned RR" value={fmtR(calc.plannedR)} />
@@ -1615,7 +1647,7 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
           <Field label="Max Tick"><input type="number" step="any" value={form.maxTick ?? ''} onChange={(e) => set('maxTick', e.target.value)} /></Field>
           <Field label="MFE / MAE"><div className="inline-inputs"><input type="number" step="any" value={form.mfeR} onChange={(e) => set('mfeR', e.target.value)} /><input type="number" step="any" value={form.maeR} onChange={(e) => set('maeR', e.target.value)} /></div></Field>
           <Field label="Rule Violation"><Select options={options.ruleViolation} value={form.ruleViolation} onChange={(v) => set('ruleViolation', v)} /></Field>
-          <Field label="Emotion After"><Select options={options.emotion} value={form.emotionAfter} onChange={(v) => set('emotionAfter', v)} /></Field>
+          <Field label="Emotion After"><select value={form.emotionAfter} onChange={(e) => set('emotionAfter', e.target.value)}>{options.emotion.map((emotion) => <option key={emotion} value={emotion}>{t(emotion)}</option>)}</select></Field>
         </div>
         <Field label="Reflection"><textarea value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} placeholder="Why this trade, what followed the plan, what to avoid next time..." /></Field>
       </Panel>
@@ -2735,7 +2767,8 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     </div></Panel>
     <div className="grid two settings-lower"><Panel title="Portfolio Management"><div className="template-row"><Field label="Auto preset"><select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>{portfolioTemplates.map((template) => <option key={template.id || template.templateKey} value={String(template.id || template.templateKey)}>{template.label}</option>)}</select></Field><button onClick={applyTemplate}><SlidersHorizontal size={15} />{t('Apply')}</button></div><div className="form-grid"><Field label="Name"><input value={accountDraft.name || ''} onChange={(e) => setAccountField('name', e.target.value)} /></Field><Field label="Provider"><input value={accountDraft.provider || ''} onChange={(e) => setAccountField('provider', e.target.value)} placeholder="Apex, MFF, TopStep, FTMO..." /></Field><Field label="Plan"><input value={accountDraft.planName || ''} onChange={(e) => setAccountField('planName', e.target.value)} placeholder="50K Evaluation" /></Field><Field label="Market"><input value={accountDraft.marketType || ''} onChange={(e) => setAccountField('marketType', e.target.value)} placeholder="Futures / Forex" /></Field><Field label="Type"><select value={accountDraft.type || 'live'} onChange={(e) => setAccountField('type', e.target.value)}><option value="backtest">backtest</option><option value="forward">forward</option><option value="live">live</option><option value="funded">funded</option></select></Field><Field label="Starting Balance"><input type="number" value={accountDraft.startingBalance || ''} onChange={(e) => setAccountField('startingBalance', e.target.value)} /></Field></div><div className="rule-grid"><Field label="Profit Target"><input type="number" value={accountDraft.profitTarget || ''} onChange={(e) => setAccountField('profitTarget', e.target.value)} /></Field><Field label="Daily Loss"><input type="number" value={accountDraft.dailyLossLimit || ''} onChange={(e) => setAccountField('dailyLossLimit', e.target.value)} /></Field><Field label="Max Drawdown"><input type="number" value={accountDraft.maxDrawdown || ''} onChange={(e) => setAccountField('maxDrawdown', e.target.value)} /></Field><Field label="Trailing DD"><input type="number" value={accountDraft.trailingDrawdown || ''} onChange={(e) => setAccountField('trailingDrawdown', e.target.value)} /></Field><Field label="Max Contracts"><input type="number" value={accountDraft.maxContracts || ''} onChange={(e) => setAccountField('maxContracts', e.target.value)} /></Field><Field label="Min Days"><input type="number" value={accountDraft.minTradingDays || ''} onChange={(e) => setAccountField('minTradingDays', e.target.value)} /></Field></div><div className="form-grid compact"><Field label="Consistency Rule"><textarea value={accountDraft.consistencyRule || ''} onChange={(e) => setAccountField('consistencyRule', e.target.value)} /></Field><Field label="Payout Rule"><textarea value={accountDraft.payoutRule || ''} onChange={(e) => setAccountField('payoutRule', e.target.value)} /></Field></div><div className="fee-grid"><Field label="Commission type"><select value={accountDraft.commissionType || 'none'} onChange={(e) => setAccountField('commissionType', e.target.value)}>{Object.entries(commissionTypeLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></Field><Field label="Amount"><input type="number" step="any" value={accountDraft.commissionAmount ?? ''} onChange={(e) => setAccountField('commissionAmount', e.target.value)} /></Field><Field label="Scope"><select value={accountDraft.commissionScope || 'roundTrip'} onChange={(e) => setAccountField('commissionScope', e.target.value)}><option value="roundTrip">{t('Round trip')}</option><option value="entry">{t('Entry only')}</option><option value="exit">{t('Exit only')}</option></select></Field></div><Field label="Commission note"><input value={accountDraft.commissionNotes || ''} onChange={(e) => setAccountField('commissionNotes', e.target.value)} placeholder="Keep this synced with your broker statement" /></Field><div className="portfolio-summary"><span>{accountDraft.provider || 'Custom'} / {accountDraft.planName || 'Manual plan'}</span><b>{money(accountDraft.startingBalance || 0)}</b><small>{t(commissionTypeLabels[accountDraft.commissionType || 'none'])} {accountDraft.commissionAmount ? `• ${accountDraft.commissionAmount}` : ''}</small></div><div className="actions"><button className="primary" onClick={saveAccount}><Save size={16} />{t('Save portfolio')}</button><button onClick={() => resetAccount(account.id)}>{t('Reset')}</button>{accounts.length > 1 && <button onClick={() => deleteAccount(account.id)}><Trash2 size={14} />{t('Delete')}</button>}</div><div className="portfolio-list">{accounts.map((row) => <button key={row.id} className={row.id === account?.id ? 'selected' : ''}>{row.name}</button>)}</div></Panel>
     <Panel title="Security"><div className="form-grid"><Field label="Current password"><PasswordInput value={passwords.currentPassword} onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })} visible={visiblePasswords.currentPassword} onToggle={() => togglePassword('currentPassword')} autoComplete="current-password" /></Field><Field label="New password"><PasswordInput value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} visible={visiblePasswords.newPassword} onToggle={() => togglePassword('newPassword')} autoComplete="new-password" /></Field><Field label="Confirm password"><PasswordInput value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} visible={visiblePasswords.confirmPassword} onToggle={() => togglePassword('confirmPassword')} autoComplete="new-password" /></Field></div><div className="actions"><button className="primary" onClick={changePassword} disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}><Save size={16} />{t('Change password')}</button></div></Panel></div>
-    <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder={t('Symbol')} /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><input type="number" step="any" min="0" value={asset.commissionAmount || 0} onChange={(e) => updateAsset(index, "commissionAmount", e.target.value)} placeholder="Commission/contract" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1, commissionAmount: 0 }])}><Plus size={16} />{t('Add asset')}</button></div></Panel>
+    <TradingViewIntegrationPanel api={api} accounts={accounts} account={account} setToast={setToast} />
+    <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder={t('Symbol')} /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><input type="number" step="any" min="0" value={asset.commissionAmount ?? 0} onChange={(e) => updateAsset(index, 'commissionAmount', e.target.value)} placeholder="Commission/contract" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1, commissionAmount: 0 }])}><Plus size={16} />{t('Add asset')}</button></div></Panel>
     <DataTransferPanel api={api} accounts={accounts} account={account} reload={reload} setToast={setToast} /></div>
     <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, values]) => <div className="option-card" key={key}>
       <div className="option-card-head">
@@ -2754,6 +2787,95 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
         <button onClick={() => resetOptionLabel(key)} disabled={savingOption === key}><RotateCcw size={14} />{t('Reset label')}</button>
       </div>
     </div>)}</div></Panel></section>;
+}
+
+function TradingViewIntegrationPanel({ api, accounts, account, setToast }) {
+  const { t } = useI18n();
+  const [integrations, setIntegrations] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [name, setName] = useState('TradingView Alerts');
+  const [selectedAccountId, setSelectedAccountId] = useState(String(account?.id || ''));
+  const [revealed, setRevealed] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const data = await api('/integrations/tradingview');
+    setIntegrations(data.integrations || []);
+  }
+  async function loadEvents() {
+    const data = await api('/integrations/tradingview/events?limit=20');
+    setEvents(data.events || []);
+  }
+  useEffect(() => { setSelectedAccountId(String(account?.id || '')); }, [account?.id]);
+  useEffect(() => { Promise.all([load(), loadEvents()]).catch(() => {}); }, []);
+
+  async function createIntegration() {
+    if (!selectedAccountId) return;
+    setBusy(true);
+    try {
+      const data = await api('/integrations/tradingview', { method: 'POST', body: JSON.stringify({ name, accountId: Number(selectedAccountId) }) });
+      setRevealed(data.integration);
+      setIntegrations([data.integration, ...integrations]);
+      await loadEvents();
+      setToast('TradingView webhook created. Copy the URL now.');
+    } catch (error) { setToast(error.message || 'Could not create TradingView webhook'); }
+    finally { setBusy(false); }
+  }
+  async function rotate(id) {
+    if (!confirm('Rotate this webhook? The old TradingView URL will stop working.')) return;
+    setBusy(true);
+    try {
+      const data = await api(`/integrations/tradingview/${id}/rotate`, { method: 'POST' });
+      setRevealed(data.integration);
+      setToast('TradingView webhook rotated. Update the Alert URL.');
+    } catch (error) { setToast(error.message || 'Could not rotate webhook'); }
+    finally { setBusy(false); }
+  }
+  async function toggle(row) {
+    await api(`/integrations/tradingview/${row.id}`, { method: 'PATCH', body: JSON.stringify({ name: row.name, isActive: !row.isActive }) });
+    await load();
+  }
+  async function remove(id) {
+    if (!confirm('Remove this TradingView webhook?')) return;
+    await api(`/integrations/tradingview/${id}`, { method: 'DELETE' });
+    setIntegrations(integrations.filter((row) => row.id !== id));
+    if (revealed?.id === id) setRevealed(null);
+  }
+  async function copy(text) {
+    await navigator.clipboard.writeText(text);
+    setToast('Copied to clipboard');
+  }
+  const signalMessage = '{"event_id":"{{timenow}}-{{ticker}}","event_type":"signal","date":"{{time}}","asset":"{{ticker}}","direction":"long","session":"AS","ltf_entry":"OB + FVG"}';
+  const tradeMessage = '{"event_id":"{{timenow}}-{{ticker}}","event_type":"trade","date":"{{time}}","asset":"{{ticker}}","direction":"long","result":"win","pnl":{{strategy.netprofit}}}';
+  return <Panel title="TradingView Auto Sync"><div className="integration-panel">
+    <p className="muted">{t('TradingView Alert sends a completed trade as JSON to your selected portfolio. Set a unique event_id to prevent duplicates.')}</p>
+    <div className="form-grid compact"><Field label="Webhook name"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Target portfolio"><select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)}>{accounts.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field></div>
+    <div className="actions"><button className="primary" onClick={createIntegration} disabled={busy || !selectedAccountId}><Plus size={15} />{t('Create webhook')}</button></div>
+    {revealed && <div className="integration-secret"><b>{t('Copy this URL now')}</b><div className="copy-row"><input readOnly value={revealed.webhookUrl} /><button onClick={() => copy(revealed.webhookUrl)}><Download size={14} />{t('Copy URL')}</button></div><small>Secret token is shown only once. Do not share this URL publicly.</small><label className="copy-label">Signal JSON · Indicator setup</label><div className="copy-row"><textarea readOnly value={signalMessage} /><button onClick={() => copy(signalMessage)}><FileText size={14} />{t('Copy JSON')}</button></div><label className="copy-label">Trade JSON · completed result</label><div className="copy-row"><textarea readOnly value={tradeMessage} /><button onClick={() => copy(tradeMessage)}><FileText size={14} />{t('Copy JSON')}</button></div></div>}
+    {import.meta.env.DEV && revealed && <TradingViewSimulator webhookUrl={revealed.webhookUrl} onDone={loadEvents} setToast={setToast} />}
+    <div className="integration-list">{integrations.map((row) => <div className="integration-row" key={row.id}><div><b>{row.name}</b><small>{accounts.find((item) => item.id === row.accountId)?.name || `Portfolio ${row.accountId}`} · {row.receivedCount || 0} received{row.lastReceivedAt ? ` · last ${row.lastReceivedAt}` : ''}</small></div><div className="row-actions"><button onClick={() => toggle(row)}>{row.isActive ? t('Disable') : t('Enable')}</button><button onClick={() => rotate(row.id)} disabled={busy}>{t('Rotate')}</button><button onClick={() => remove(row.id)}><Trash2 size={14} /></button></div></div>)}</div>
+    <div className="sync-center"><div className="sync-center-head"><div><b>Sync Center</b><small>ตรวจสอบ Signal และ Trade ที่รับเข้าล่าสุดจาก TradingView</small></div><button onClick={() => loadEvents().catch((error) => setToast(error.message || 'Could not load sync events'))} title="Refresh sync events"><RotateCcw size={14} />Refresh</button></div>{events.length ? <div className="sync-event-list">{events.map((event) => <div className="sync-event" key={`${event.eventType}-${event.id}`}><div className={`sync-event-status ${event.eventType === 'signal' ? 'signal' : ''}`}><span className="sync-dot" />{event.eventType === 'signal' ? `Signal · ${event.status}` : 'Imported'}</div><div className="sync-event-main"><b>{event.asset || 'Unknown asset'} · {event.direction || '-'}</b><small>{event.accountName} · {event.integrationName}</small></div><div className="sync-event-meta"><b className={Number(event.netPnl || 0) >= 0 ? 'pos' : 'neg'}>{event.netPnl == null ? '-' : money(event.netPnl)}</b><small>{event.receivedAt || '-'}</small></div></div>)}</div> : <div className="sync-empty">ยังไม่มี Signal หรือ Trade ที่รับจาก TradingView</div>}</div>
+    <small className="transfer-note">TradingView webhooks require HTTPS and TradingView 2FA. This integration imports completed records; it does not place orders.</small>
+  </div></Panel>;
+}
+
+function TradingViewSimulator({ webhookUrl, onDone, setToast }) {
+  const [busy, setBusy] = useState(false);
+  async function sendSimulation() {
+    setBusy(true);
+    const eventId = 'local-sim-' + Date.now();
+    const base = { event_id: eventId, date: new Date().toISOString(), asset: 'NQ1', direction: 'long', session: 'AS', ltf_entry: 'OB + FVG', setup_grade: 'A' };
+    try {
+      const signal = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...base, event_type: 'signal' }) });
+      if (!signal.ok) throw new Error('Signal failed (' + signal.status + ')');
+      const trade = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...base, event_type: 'trade', result: 'win', pnl: 125, entry_price: 21000, stop_loss: 20950, take_profit: 21100, planned_r: 2, max_rr: 2.6, max_tick: 100, commission: 2.8 }) });
+      if (!trade.ok) throw new Error('Trade failed (' + trade.status + ')');
+      await onDone();
+      setToast('Local TradingView simulation completed: Signal matched to Trade');
+    } catch (error) { setToast(error.message || 'Local TradingView simulation failed'); }
+    finally { setBusy(false); }
+  }
+  return <div className="sync-simulator"><div><b>Local TradingView Simulator</b><small>ส่ง Signal และ Completed Trade ผ่าน Webhook จริงเพื่อทดสอบการจับคู่</small></div><button onClick={sendSimulation} disabled={busy}><RotateCcw size={14} />{busy ? 'Sending...' : 'Run simulation'}</button></div>;
 }
 
 function DataTransferPanel({ api, accounts, account, reload, setToast }) {
@@ -3114,4 +3236,3 @@ function Select({ options = [], value, onChange }) { return <select value={value
 function ChartWrap({ empty, children, tall = false }) { return <div className={`chart-wrap ${tall ? 'tall' : ''}`}>{empty ? <div className="empty">No data yet</div> : children}</div>; }
 
 createRoot(document.getElementById('root')).render(<App />);
-

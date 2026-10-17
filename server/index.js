@@ -431,12 +431,12 @@ async function issuePasswordReset(req, user) {
 
 const defaultOptions = [
   ['session', 'Session', ['AS', 'LO', 'NY', 'LC']],
-  ['mode', 'Mode', ['BOSe', 'CHe', 'Flip']],
+  ['mode', 'Mode', ['CANDLE + CODE', 'BOSe', 'CHe', 'Flip']],
   ['htfBias', 'HTF Bias', ['Bullish', 'Bearish', 'Neutral']],
   ['htfPoi', 'HTF POI', ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount']],
   ['mtfStructure', 'MTF Structure', ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range']],
   ['ltfEntry', 'LTF Entry', ['OB', 'FVG', 'OB + FVG', 'Breaker', 'Mitigation']],
-  ['keyZone', 'Key Zone', ['Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM']],
+  ['keyZone', 'Key Zone', ['None', 'Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM']],
   ['ruleViolation', 'Rule Violation', ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price']],
   ['emotion', 'Emotion', ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']]
 ];
@@ -807,6 +807,183 @@ app.post('/api/accounts/:id/reset', auth, asyncHandler(async (req, res) => {
   await run('DELETE FROM trades WHERE account_id=? AND user_id=?', [req.params.id, userId]);
   await run('DELETE FROM journal_notes WHERE account_id=? AND user_id=?', [req.params.id, userId]);
   res.json({ ok: true });
+}));
+
+function tradingViewDateTime(payload) {
+  const raw = payload.date || payload.trade_date || payload.closeDate || payload.time || payload.timestamp;
+  if (!raw) return { date: '', time: null };
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return { date: parsed.toISOString().slice(0, 10), time: parsed.toISOString().slice(11, 16) };
+  }
+  const text = String(raw);
+  return { date: text.slice(0, 10), time: text.length >= 16 ? text.slice(11, 16) : null };
+}
+
+function normalizeTradingViewPayload(payload) {
+  const body = payload && typeof payload === 'object' ? payload : {};
+  const dateTime = tradingViewDateTime(body);
+  const direction = String(body.direction || body.side || body.action || '').toLowerCase();
+  const result = String(body.result || body.status || '').toLowerCase().replace(/\s+/g, '');
+  const resultMap = { win: 'win', profit: 'win', loss: 'loss', lose: 'loss', breakeven: 'breakeven', be: 'breakeven', miss: 'miss', reversed: 'reversed' };
+  const normalizedResult = resultMap[result];
+  return {
+    eventKey: String(body.event_id || body.eventId || body.order_id || body.orderId || body.id || '').trim(),
+    eventType: String(body.event_type || body.eventType || body.type || (normalizedResult ? 'trade' : 'signal')).toLowerCase(),
+    trade: {
+      date: dateTime.date,
+      asset: body.asset || body.symbol || body.ticker,
+      direction: direction.includes('short') || direction === 'sell' ? 'short' : direction.includes('long') || direction === 'buy' ? 'long' : '',
+      session: body.session || 'AS',
+      entryTime: body.entry_time || body.entryTime || body.entry_time_utc || null,
+      exitTime: body.exit_time || body.exitTime || dateTime.time,
+      entryPrice: body.entry_price ?? body.entryPrice ?? body.entry,
+      stopLoss: body.stop_loss ?? body.stopLoss ?? body.sl,
+      takeProfit: body.take_profit ?? body.takeProfit ?? body.tp,
+      result: normalizedResult || '',
+      pnl: body.pnl ?? body.net_pnl ?? body.netPnl ?? body.profit,
+      grossPnl: body.gross_pnl ?? body.grossPnl ?? body.pnl ?? body.profit,
+      commissionAmount: body.commission ?? body.commission_amount ?? body.commissionAmount ?? 0,
+      plannedR: body.planned_r ?? body.plannedR ?? body.rr,
+      actualR: body.actual_r ?? body.actualR,
+      maxR: body.max_rr ?? body.maxR,
+      maxTick: body.max_tick ?? body.maxTick,
+      lotSize: body.qty ?? body.quantity ?? body.lotSize ?? body.lot,
+      notes: body.comment || body.notes || 'Imported from TradingView webhook',
+      mode: body.mode,
+      htfBias: body.htf_bias ?? body.htfBias,
+      htfPoi: body.htf_poi ?? body.htfPoi,
+      mtfStructure: body.mtf_structure ?? body.mtfStructure,
+      ltfEntry: body.ltf_entry ?? body.ltfEntry,
+      setupGrade: body.setup_grade ?? body.setupGrade
+    }
+  };
+}
+
+function integrationForClient(row, req, rawToken = '') {
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    name: row.name,
+    isActive: Boolean(row.is_active),
+    lastReceivedAt: row.last_received_at,
+    receivedCount: Number(row.received_count || 0),
+    createdAt: row.created_at,
+    webhookUrl: `${publicBaseUrl(req)}/api/webhooks/tradingview/${rawToken || ':token'}`,
+    token: rawToken || undefined
+  };
+}
+
+app.get('/api/integrations/tradingview', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  const rows = await all(`SELECT id, account_id, name, is_active, last_received_at, received_count, created_at FROM tradingview_integrations WHERE user_id=? ORDER BY id DESC`, [userId]);
+  res.json({ integrations: rows.map((row) => integrationForClient(row, req)) });
+}));
+
+app.get('/api/integrations/tradingview/events', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  const requestedLimit = Number(req.query.limit || 20);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 20, 1), 100);
+  const rows = await all(`
+    SELECT * FROM (
+      SELECT e.id, e.integration_id, e.event_key, e.trade_id, e.received_at,
+             i.name integration_name, i.account_id, a.name account_name,
+             t.asset, t.direction, t.result, t.net_pnl, 'trade' event_type, 'imported' status
+      FROM tradingview_webhook_events e
+      JOIN tradingview_integrations i ON i.id=e.integration_id
+      JOIN accounts a ON a.id=i.account_id
+      LEFT JOIN trades t ON t.id=e.trade_id
+      WHERE i.user_id=?
+      UNION ALL
+      SELECT s.id, s.integration_id, s.event_key, s.trade_id, s.received_at,
+             i.name integration_name, i.account_id, a.name account_name,
+             s.asset, s.direction, NULL result, NULL net_pnl, 'signal' event_type, s.status
+      FROM tradingview_signals s
+      JOIN tradingview_integrations i ON i.id=s.integration_id
+      JOIN accounts a ON a.id=i.account_id
+      WHERE i.user_id=?
+    ) recent
+    ORDER BY recent.received_at DESC, recent.id DESC
+    LIMIT ${limit}
+  `, [userId, userId]);
+  res.json({ events: rows.map((row) => ({
+    id: row.id,
+    integrationId: row.integration_id,
+    integrationName: row.integration_name,
+    accountId: row.account_id,
+    accountName: row.account_name,
+    eventKey: row.event_key,
+    tradeId: row.trade_id,
+    receivedAt: row.received_at,
+    asset: row.asset,
+    direction: row.direction,
+    result: row.result,
+    netPnl: row.net_pnl,
+    eventType: row.event_type,
+    status: row.status
+  })) });
+}));
+
+app.post('/api/integrations/tradingview', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  await ensureAccount(userId, req.body.accountId);
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const name = String(req.body.name || 'TradingView').trim().slice(0, 80) || 'TradingView';
+  const id = await insert('INSERT INTO tradingview_integrations (user_id, account_id, name, token_hash) VALUES (?, ?, ?, ?)', [userId, req.body.accountId, name, hashToken(rawToken)]);
+  const row = await get('SELECT id, account_id, name, is_active, last_received_at, received_count, created_at FROM tradingview_integrations WHERE id=?', [id]);
+  res.json({ integration: integrationForClient(row, req, rawToken), warning: 'Copy this token now. It is not stored in readable form.' });
+}));
+
+app.post('/api/integrations/tradingview/:id/rotate', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const result = await run('UPDATE tradingview_integrations SET token_hash=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?', [hashToken(rawToken), req.params.id, userId]);
+  if (!result.changes) return res.status(404).json({ error: 'TradingView integration not found' });
+  const row = await get('SELECT id, account_id, name, is_active, last_received_at, received_count, created_at FROM tradingview_integrations WHERE id=?', [req.params.id]);
+  res.json({ integration: integrationForClient(row, req, rawToken), warning: 'The previous webhook URL is now disabled.' });
+}));
+
+app.patch('/api/integrations/tradingview/:id', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  const name = String(req.body.name || 'TradingView').trim().slice(0, 80) || 'TradingView';
+  const result = await run('UPDATE tradingview_integrations SET name=?, is_active=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?', [name, boolValue(req.body.isActive !== false), req.params.id, userId]);
+  if (!result.changes) return res.status(404).json({ error: 'TradingView integration not found' });
+  const row = await get('SELECT id, account_id, name, is_active, last_received_at, received_count, created_at FROM tradingview_integrations WHERE id=?', [req.params.id]);
+  res.json({ integration: integrationForClient(row, req) });
+}));
+
+app.delete('/api/integrations/tradingview/:id', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  await run('DELETE FROM tradingview_integrations WHERE id=? AND user_id=?', [req.params.id, userId]);
+  res.json({ ok: true });
+}));
+
+app.post('/api/webhooks/tradingview/:token', asyncHandler(async (req, res) => {
+  const token = String(req.params.token || '');
+  const integration = await get('SELECT * FROM tradingview_integrations WHERE token_hash=? AND is_active=?', [hashToken(token), boolValue(true)]);
+  if (!integration) return res.status(404).json({ error: 'Webhook not found or disabled' });
+  const normalized = normalizeTradingViewPayload(req.body);
+  const eventKey = normalized.eventKey || hashToken(JSON.stringify(req.body));
+  const existing = await get('SELECT id, trade_id FROM tradingview_webhook_events WHERE integration_id=? AND event_key=?', [integration.id, eventKey]);
+  if (existing) return res.json({ ok: true, duplicate: true, tradeId: existing.trade_id || null });
+  const existingSignal = await get('SELECT id, trade_id, status FROM tradingview_signals WHERE integration_id=? AND event_key=?', [integration.id, eventKey]);
+  const isSignal = ['signal', 'setup', 'entry', 'alert'].includes(normalized.eventType) || !normalized.trade.result;
+  if (isSignal) {
+    if (existingSignal) return res.json({ ok: true, duplicate: true, signalId: existingSignal.id, status: existingSignal.status });
+    const signal = normalizeTrade(normalized.trade);
+    if (!signal.trade_date || !signal.asset || !signal.direction) return res.status(422).json({ error: 'TradingView signal rejected: date, asset, and direction are required' });
+    const signalId = await insert('INSERT INTO tradingview_signals (integration_id, event_key, signal_date, signal_time, asset, direction, session, signal_type, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [integration.id, eventKey, signal.trade_date, signal.entry_time || signal.exit_time, signal.asset, signal.direction, signal.session, normalized.eventType, JSON.stringify(req.body)]);
+    await run('UPDATE tradingview_integrations SET last_received_at=CURRENT_TIMESTAMP, received_count=received_count+1, updated_at=CURRENT_TIMESTAMP WHERE id=?', [integration.id]);
+    return res.status(201).json({ ok: true, signal: true, signalId });
+  }
+  const error = validateTrade(normalizeTrade(normalized.trade));
+  if (error) return res.status(422).json({ error: `TradingView payload rejected: ${error}`, expected: 'date, asset, direction, result, and a unique event_id' });
+  const trade = normalizeTrade(normalized.trade);
+  const tradeId = await insert(`INSERT INTO trades (user_id, account_id, ${tradeColumns.join(',')}) VALUES (${Array.from({ length: tradeColumns.length + 2 }, () => '?').join(',')})`, [integration.user_id, integration.account_id, ...tradeColumns.map((column) => trade[column])]);
+  await insert('INSERT INTO tradingview_webhook_events (integration_id, event_key, payload_json, trade_id) VALUES (?, ?, ?, ?)', [integration.id, eventKey, JSON.stringify(req.body), tradeId]);
+  if (existingSignal?.status === 'pending') await run('UPDATE tradingview_signals SET status=?, trade_id=? WHERE id=?', ['matched', tradeId, existingSignal.id]);
+  await run('UPDATE tradingview_integrations SET last_received_at=CURRENT_TIMESTAMP, received_count=received_count+1, updated_at=CURRENT_TIMESTAMP WHERE id=?', [integration.id]);
+  res.status(201).json({ ok: true, imported: true, tradeId });
 }));
 
 app.get('/api/options', auth, asyncHandler(async (req, res) => {
@@ -1312,4 +1489,3 @@ app.use((err, req, res, next) => {
 app.listen(port, () => {
   console.log(`API listening on http://127.0.0.1:${port}`);
 });
-
