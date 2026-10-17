@@ -78,10 +78,13 @@ function syncTradeCommission() {
 function enhanceTradeForm() {
   const title = document.querySelector('.workspace h1')?.textContent || '';
   if (!title.includes('Add Trade') && !title.includes('เพิ่มรายการเทรด')) return;
-  const key = `${labeledControl('Asset')?.value || ''}|${resultValue()}`;
+  const key = `${labeledControl(['Asset', 'สินทรัพย์'])?.value || ''}|${resultValue()}`;
   if (state.tradeSyncedKey === key) return;
   state.tradeSyncedKey = key;
-  loadAssets().then(syncTradeCommission);
+  loadAssets().then(() => {
+    syncTradeCommission();
+    window.setTimeout(syncTradeCommission, 350);
+  });
 }
 
 function assetRows() {
@@ -148,10 +151,13 @@ window.fetch = async (resource, options = {}) => {
 };
 
 document.addEventListener('change', (event) => {
-  const isTradeControl = event.target === labeledControl('Asset') || event.target === labeledControl('Result');
+  const isTradeControl = event.target === labeledControl(['Asset', 'สินทรัพย์']) || event.target === labeledControl(['Result', 'ผลลัพธ์']);
   if (isTradeControl) {
     state.tradeSyncedKey = '';
-    loadAssets().then(syncTradeCommission);
+    loadAssets().then(() => {
+      syncTradeCommission();
+      window.setTimeout(syncTradeCommission, 350);
+    });
   }
 });
 
