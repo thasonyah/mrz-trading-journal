@@ -1570,13 +1570,17 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
   }
   async function save(e) {
     e.preventDefault();
-    const payload = enrichTrade(form, account, assetPreset);
-    if (editing) await api(`/accounts/${accountId}/trades/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    else await api(`/accounts/${accountId}/trades`, { method: 'POST', body: JSON.stringify(payload) });
-    setEditing(null);
-    setForm(blankTrade);
-    await reload(accountId);
-    setToast(editing ? 'Trade updated' : 'Trade saved');
+    try {
+      const payload = enrichTrade(form, account, assetPreset);
+      if (editing) await api(`/accounts/${accountId}/trades/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      else await api(`/accounts/${accountId}/trades`, { method: 'POST', body: JSON.stringify(payload) });
+      setEditing(null);
+      setForm(blankTrade);
+      await reload(accountId);
+      setToast(editing ? 'Trade updated' : 'Trade saved');
+    } catch (error) {
+      setToast(error?.message || (editing ? 'Could not update trade' : 'Could not save trade'));
+    }
   }
   return <section>
     <Header title={editing ? 'Edit Trade' : 'Add Trade'} hint="Capture structure, execution, psychology, and result in one pass" />
@@ -1695,7 +1699,7 @@ function HistoryPage({ api, accountId, account, trades, setTrades, setEditing, s
     <Header title="History" hint={`${list.length} of ${trades.length} trades`} action={<button onClick={exportJson}><Download size={16} />Export JSON</button>} />
     <div className="toolbar"><div className="search"><Filter size={16} /><input placeholder="Search setup, notes, result, asset..." value={q} onChange={(e) => setQ(e.target.value)} /></div><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All results</option><option value="win">Win</option><option value="loss">Loss</option><option value="breakeven">Breakeven</option><option value="miss">Miss</option></select></div>
     <div className="table-wrap"><table><thead><tr>{['Date','Asset','Session','Mode','Dir','Ticks','RR','SL$','TP$','Balance','Con Loss','DD%','Setup','LTF Entry','Net P&L','Charts',''].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>
-      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>{t.mode || '-'}</td><td>{t.direction}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}<small>Max {t.maxTick ?? '-'}</small></td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td>{pct(t.ddLossPct * 100)}<small>{pct(t.sumDdLossPct * 100)}</small></td><td><b>{t.setupGrade}</b><small>{t.htfBias} {t.htfPoi}</small></td><td><b>{t.ltfEntry || '-'}</b><small>{t.keyZone || '-'}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}<small>Fee {money(t.commissionAmount || 0)}</small></td><td><ChartLinks trade={t} /></td><td className="row-actions"><button onClick={() => setEditing(t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
+      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>{t.mode || '-'}</td><td>{t.direction}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}<small>Max {t.maxTick ?? '-'}</small></td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td>{pct(t.ddLossPct * 100)}<small>{pct(t.sumDdLossPct * 100)}</small></td><td><b>{t.setupGrade}</b><small>{t.htfBias} {t.htfPoi}</small></td><td><b>{t.ltfEntry || '-'}</b><small>{t.keyZone || '-'}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}<small>Fee {money(t.commissionAmount || 0)}</small></td><td><ChartLinks trade={t} /></td><td className="row-actions"><button onClick={() => setEditing(trades.find((rawTrade) => rawTrade.id === t.id) || t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
     </tbody></table></div>
   </section>;
 }
