@@ -16,8 +16,58 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.resolve(__dirname, '..', 'dist');
 const tokenTtlHours = 24;
 
-app.use(cors({ origin: true, credentials: true }));
+const configuredOrigins = new Set(
+  String(process.env.CORS_ORIGINS || process.env.PUBLIC_BASE_URL || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+const requestBuckets = new Map();
+const securityWindowMs = 60 * 1000;
+const authWindowMs = 15 * 60 * 1000;
+
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https:; font-src 'self' data:; form-action 'self'");
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin || process.env.NODE_ENV !== 'production' || configuredOrigins.has(origin)) return callback(null, true);
+    return callback(null, false);
+  }
+}));
 app.use(express.json({ limit: '5mb' }));
+
+function rateLimit({ windowMs = securityWindowMs, max = 240, keyPrefix = 'api' } = {}) {
+  return (req, res, next) => {
+    const address = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+    const key = `${keyPrefix}:${address}`;
+    const now = Date.now();
+    const current = requestBuckets.get(key);
+    if (!current || now - current.startedAt >= windowMs) {
+      requestBuckets.set(key, { startedAt: now, count: 1 });
+      return next();
+    }
+    current.count += 1;
+    if (current.count > max) {
+      res.setHeader('Retry-After', Math.ceil((windowMs - (now - current.startedAt)) / 1000));
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
+    return next();
+  };
+}
+
+app.use('/api', rateLimit());
+app.use('/api/auth', rateLimit({ windowMs: authWindowMs, max: 30, keyPrefix: 'auth' }));
 
 const asyncHandler = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 

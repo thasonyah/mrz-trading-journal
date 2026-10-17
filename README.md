@@ -75,6 +75,15 @@ Render environment variables:
 NODE_ENV=production
 DATABASE_URL=<provided by Render Postgres>
 JWT_SECRET=<set in Render dashboard>
+
+## Source protection and backups
+
+- Keep the GitHub repository private and store Render environment variables in Render, never in the repository.
+- Production API access is restricted by `CORS_ORIGINS`, protected with security headers, and rate-limited. Keep `JWT_SECRET` long and random.
+- Important calculation and permission checks should remain on the server; browser code cannot be made impossible to inspect.
+- Create a local recovery archive with `./scripts/backup.sh`. The archive includes source, migrations, public assets, indicators, and the local SQLite data directory, but excludes `.env`, `node_modules`, `dist`, and Git metadata.
+- Restore with `./scripts/restore.sh backups/<archive>.tar.gz <target-dir>`, create a new `.env` from `.env.example`, then run `npm install`, `npm run migrate`, and `npm run build`.
+
 PUBLIC_BASE_URL=https://your-render-service.onrender.com
 SMTP_HOST=<optional SMTP host>
 SMTP_PORT=587
