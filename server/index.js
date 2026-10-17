@@ -1216,8 +1216,11 @@ app.put('/api/accounts/:accountId/trades/:id', auth, asyncHandler(async (req, re
   const error = validateTrade(t);
   if (error) return res.status(400).json({ error });
   const setSql = tradeColumns.map((c) => `${c}=?`).join(',');
-  await run(`UPDATE trades SET ${setSql}, updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND account_id=?`, [...tradeColumns.map((c) => t[c]), req.params.id, userId, req.params.accountId]);
-  res.json({ trade: rowToTrade(await get('SELECT * FROM trades WHERE id=? AND user_id=?', [req.params.id, userId])) });
+  const result = await run(`UPDATE trades SET ${setSql}, updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND account_id=?`, [...tradeColumns.map((c) => t[c]), req.params.id, userId, req.params.accountId]);
+  if (!result.changes) return res.status(404).json({ error: 'Trade not found in this portfolio' });
+  const saved = await get('SELECT * FROM trades WHERE id=? AND user_id=? AND account_id=?', [req.params.id, userId, req.params.accountId]);
+  if (!saved) return res.status(404).json({ error: 'Trade not found in this portfolio' });
+  res.json({ trade: rowToTrade(saved) });
 }));
 
 app.delete('/api/accounts/:accountId/trades/:id', auth, asyncHandler(async (req, res) => {
