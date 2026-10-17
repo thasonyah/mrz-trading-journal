@@ -558,11 +558,11 @@ function dailyResultOptions() {
 }
 
 const defaultAssets = [
-  { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5 },
-  { symbol: 'MNQ1', tickSize: 0.25, dollarPerPoint: 0.5 },
-  { symbol: 'MGC1', tickSize: 0.1, dollarPerPoint: 1 },
-  { symbol: 'GC1', tickSize: 0.1, dollarPerPoint: 10 },
-  { symbol: 'XAUUSD', tickSize: 0.01, dollarPerPoint: 1 }
+  { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5, commissionAmount: 4.68 },
+  { symbol: 'MNQ1', tickSize: 0.25, dollarPerPoint: 0.5, commissionAmount: 0 },
+  { symbol: 'MGC1', tickSize: 0.1, dollarPerPoint: 1, commissionAmount: 0 },
+  { symbol: 'GC1', tickSize: 0.1, dollarPerPoint: 10, commissionAmount: 0 },
+  { symbol: 'XAUUSD', tickSize: 0.01, dollarPerPoint: 1, commissionAmount: 0 }
 ];
 
 const defaultOptions = {
@@ -3106,3 +3106,4 @@ function Select({ options = [], value, onChange }) { return <select value={value
 function ChartWrap({ empty, children, tall = false }) { return <div className={`chart-wrap ${tall ? 'tall' : ''}`}>{empty ? <div className="empty">No data yet</div> : children}</div>; }
 
 createRoot(document.getElementById('root')).render(<App />);
+
