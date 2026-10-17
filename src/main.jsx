@@ -558,8 +558,8 @@ function dailyResultOptions() {
 }
 
 const defaultAssets = [
-  { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 5, commissionAmount: 4.68 },
-  { symbol: 'MNQ1', tickSize: 0.25, dollarPerPoint: 0.5, commissionAmount: 0 },
+  { symbol: 'NQ1', tickSize: 0.25, dollarPerPoint: 20, commissionAmount: 4.68 },
+  { symbol: 'MNQ1', tickSize: 0.25, dollarPerPoint: 2, commissionAmount: 1.9 },
   { symbol: 'MGC1', tickSize: 0.1, dollarPerPoint: 1, commissionAmount: 0 },
   { symbol: 'GC1', tickSize: 0.1, dollarPerPoint: 10, commissionAmount: 0 },
   { symbol: 'XAUUSD', tickSize: 0.01, dollarPerPoint: 1, commissionAmount: 0 }
@@ -673,7 +673,7 @@ function accountDraftFrom(account = {}) {
 const blankTrade = {
   date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'BOSe', entryTime: '06:00', exitTime: '',
   durationTime: '', orderWaitMinutes: '', entryPrice: '', stopLoss: '', takeProfit: '', tpTicks: '', slTicks: '',
-  tickSize: 0.25, dollarPerPoint: 5, lotSize: '', commissionAmount: '',
+  tickSize: 0.25, dollarPerPoint: 20, lotSize: '', commissionAmount: '',
   riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: true,
   fvgPosition: 'Middle of OB', liquiditySweep: true, bos: true, choch: false, mtfStructure: 'BOS',
   ltfEntry: 'OB + FVG', keyZone: 'Discount', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
