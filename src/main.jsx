@@ -748,11 +748,13 @@ function startingBalanceOf(accountOrBalance = 50000) {
   return Number(accountOrBalance || 50000);
 }
 
-function commissionForTrade(trade, grossPnl, account) {
+function commissionForTrade(trade, grossPnl, account, assetPreset) {
   if (trade.result === 'miss') return 0;
   const type = account?.commissionType || 'none';
   if (trade.commissionAmount !== '' && trade.commissionAmount != null && (Number(trade.commissionAmount) > 0 || type === 'none')) return Number(trade.commissionAmount) || 0;
   const amount = Number(account?.commissionAmount || 0);
+  const assetAmount = Number(assetPreset?.commissionAmount || 0);
+  if ((!amount || type === 'none') && assetAmount > 0) return assetAmount * (Number(trade.lotSize || trade.suggestedLot || 0) || 0);
   if (!amount || type === 'none') return 0;
   if (type === 'fixed') return amount;
   if (type === 'perContract') return amount * (Number(trade.lotSize || trade.suggestedLot || 0) || 0);
@@ -760,7 +762,7 @@ function commissionForTrade(trade, grossPnl, account) {
   return 0;
 }
 
-function enrichTrade(input, account = null) {
+function enrichTrade(input, account = null, assetPreset = null) {
   const t = { ...input };
   const durationTime = t.entryTime && t.exitTime ? durationLabelFromTimes(t.entryTime, t.exitTime) : (t.durationTime || '');
   const entry = Number(t.entryPrice);
@@ -786,7 +788,7 @@ function enrichTrade(input, account = null) {
   const tpAmount = Number.isFinite(tpTicks) ? tpTicks * dpp * lotSize : risk * plannedR;
   const resultR = t.result === 'win' ? plannedR : t.result === 'loss' || t.result === 'reversed' ? -1 : 0;
   const grossPnl = t.result === 'win' ? tpAmount : (t.result === 'loss' || t.result === 'reversed') ? -slAmount : 0;
-  const commissionAmount = commissionForTrade({ ...t, lotSize, suggestedLot }, grossPnl, account);
+  const commissionAmount = commissionForTrade({ ...t, lotSize, suggestedLot }, grossPnl, account, assetPreset);
   const netPnl = grossPnl - commissionAmount;
   return {
     ...t,
@@ -1495,7 +1497,8 @@ function PropFirmRulesPanel({ account, rules, setPage }) {
 function TradeForm({ api, accountId, account, trades, options, assets, editing, setEditing, reload, setToast }) {
   const [form, setForm] = useState(editing || blankTrade);
   useEffect(() => setForm(editing || blankTrade), [editing]);
-  const calc = enrichTrade(form, account);
+  const assetPreset = assets.find((asset) => asset.symbol === form.asset);
+  const calc = enrichTrade(form, account, assetPreset);
   const projectedRules = useMemo(() => {
     const nextTrade = { ...form, id: editing?.id };
     const projectedTrades = editing
@@ -1506,21 +1509,21 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
   const activeRuleChecks = projectedRules.checks.filter((check) => check.enabled);
   const commissionInputValue = form.result === 'miss'
     ? 0
-    : (form.commissionAmount !== '' && form.commissionAmount != null ? form.commissionAmount : (calc.commissionAmount || ''));
+    : (form.commissionAmount !== '' && form.commissionAmount != null ? form.commissionAmount : (account?.commissionType && account.commissionType !== 'none' && Number(account.commissionAmount || 0) > 0 ? account.commissionAmount : (assetPreset?.commissionAmount || calc.commissionAmount || '')));
   const commissionHint = form.result === 'miss'
     ? 'Miss trade: commission is 0'
     : account?.commissionType && account.commissionType !== 'none'
       ? `Auto from ${account.name || 'portfolio'}: ${commissionTypeLabels[account.commissionType]}`
-      : 'No portfolio commission';
+      : assetPreset?.commissionAmount > 0 ? `Auto from ${assetPreset.symbol}: per contract` : 'No portfolio commission';
   function set(key, value) {
     let next = { ...form, [key]: value };
     if (key === 'asset') {
       const preset = assets.find((asset) => asset.symbol === value);
-      if (preset) next = { ...next, tickSize: preset.tickSize, dollarPerPoint: preset.dollarPerPoint };
+      if (preset) next = { ...next, tickSize: preset.tickSize, dollarPerPoint: preset.dollarPerPoint, commissionAmount: '' };
     }
     if (key === 'result' && value === 'miss') next = { ...next, commissionAmount: '' };
     if ((key === 'entryPrice' || key === 'direction' || key === 'tpTicks' || key === 'slTicks' || key === 'tickSize') && next.entryPrice) {
-      const preview = enrichTrade(next, account);
+      const preview = enrichTrade(next, account, assets.find((asset) => asset.symbol === next.asset));
       next = { ...next, stopLoss: preview.stopLoss || '', takeProfit: preview.takeProfit || '' };
     }
     if (key === 'entryTime' || key === 'exitTime') {
@@ -1530,7 +1533,7 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
   }
   async function save(e) {
     e.preventDefault();
-    const payload = enrichTrade(form, account);
+    const payload = enrichTrade(form, account, assetPreset);
     if (editing) await api(`/accounts/${accountId}/trades/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) });
     else await api(`/accounts/${accountId}/trades`, { method: 'POST', body: JSON.stringify(payload) });
     setEditing(null);
