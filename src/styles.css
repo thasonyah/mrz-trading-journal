@@ -151,10 +151,10 @@ a:hover { text-decoration: underline; }
   border-bottom-right-radius: 3px;
 }
 .auth-card h1 { margin: 0; font-size: 22px; letter-spacing: .2px; }
-.brand-logo { display: block; width: 80px; height: 80px; object-fit: contain; border-radius: 0; background: transparent; border: 0; }
-.auth-logo { width: 80px; height: 80px; border-radius: 0; margin-bottom: 4px; }
 .auth-card p { margin: 0; color: var(--text-faint); line-height: 1.55; }
 .auth-card label { display: grid; gap: 6px; color: var(--text-faint); font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+.brand-logo { display: block; width: 80px; height: 80px; min-width: 80px; min-height: 80px; flex: 0 0 80px; aspect-ratio: 1 / 1; object-fit: contain; object-position: center; border-radius: 0; background: transparent; border: 0; }
+.auth-logo { width: 80px; height: 80px; border-radius: 0; margin-bottom: 4px; }
 .mark {
   width: 34px;
   height: 34px;
@@ -257,7 +257,7 @@ a:hover { text-decoration: underline; }
 }
 .sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 28px; }
 .brand { display: flex; gap: 18px; align-items: center; padding: 0; min-width: 0; }
-.brand .brand-logo { width: 80px; height: 80px; }
+.brand .brand-logo { width: 80px; height: 80px; min-width: 80px; min-height: 80px; flex-basis: 80px; }
 .brand b { display: block; font-size: 30px; line-height: 1.05; letter-spacing: .1px; }
 .brand span { display: block; color: var(--text-faint); font-size: 18px; margin-top: 3px; text-transform: uppercase; letter-spacing: 2px; }
 .profile-card {
@@ -1632,7 +1632,7 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   font-size: 15px;
 }
 .asset-editor { display: grid; gap: 9px; }
-.asset-row { display: grid; grid-template-columns: 1.2fr .8fr .8fr 38px 38px; gap: 8px; align-items: center; }
+.asset-row { display: grid; grid-template-columns: 1.15fr .75fr .85fr .95fr 38px 38px; gap: 8px; align-items: center; }
 .asset-row button { min-width: 0; justify-content: center; padding: 0; }
 .portfolio-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .portfolio-list button { min-height: 30px; padding: 0 10px; }
@@ -1910,6 +1910,37 @@ tr.muted-row {
   gap: 10px;
   align-items: end;
 }
+.integration-panel { display: grid; gap: 14px; }
+.integration-panel > .muted { margin: 0; color: var(--text-dim); line-height: 1.5; }
+.integration-secret { display: grid; gap: 8px; padding: 12px; border: 1px solid rgba(46, 203, 112, .45); border-radius: 7px; background: rgba(46, 203, 112, .06); }
+.integration-secret small { color: var(--text-faint); }
+.copy-label { color: var(--text-faint); font-size: .8rem; font-weight: 600; }
+.copy-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
+.copy-row input, .copy-row textarea { min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.copy-row textarea { min-height: 74px; resize: vertical; }
+.integration-list { display: grid; gap: 8px; }
+.sync-center { margin-top: 16px; border-top: 1px solid var(--border-soft); padding-top: 16px; }
+.sync-center-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.sync-center-head > div { display: grid; gap: 3px; }
+.sync-center-head small, .sync-event-main small, .sync-event-meta small { color: var(--text-faint); }
+.sync-center-head button { display: inline-flex; align-items: center; gap: 6px; }
+.sync-event-list { display: grid; gap: 8px; }
+.sync-event { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--panel-2); }
+.sync-event-status { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: .82rem; }
+.sync-event-status.signal { color: var(--blue); }
+.sync-event-status.signal .sync-dot { background: var(--blue); box-shadow: 0 0 0 3px rgba(74, 169, 255, .13); }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(46, 203, 112, .13); }
+.sync-event-main, .sync-event-meta { display: grid; gap: 3px; }
+.sync-event-meta { text-align: right; }
+.sync-empty { padding: 14px; color: var(--text-faint); border: 1px dashed var(--border-soft); border-radius: 6px; }
+.sync-simulator { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px dashed rgba(184, 140, 34, .65); border-radius: 6px; background: rgba(184, 140, 34, .06); }
+.sync-simulator > div { display: grid; gap: 3px; }
+.sync-simulator small { color: var(--text-faint); }
+.sync-simulator button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.integration-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--panel-2); }
+.integration-row > div:first-child { min-width: 0; display: grid; gap: 4px; }
+.integration-row small { color: var(--text-faint); overflow-wrap: anywhere; }
+.integration-row .row-actions { flex-wrap: wrap; justify-content: flex-end; }
 .toast {
   position: fixed;
   right: 22px;
@@ -1965,6 +1996,12 @@ tr.muted-row {
   .sidebar-foot { display: none; }
   .kpi-grid, .form-grid, .form-grid.compact, .risk-strip, .trade-rule-preview, .option-editor, .asset-row, .builder-controls, .profile-settings, .template-row, .rule-grid, .fee-grid, .template-manager, .transfer-actions, .transfer-copy, .transfer-export, .setup-headline, .checklist-row, .rule-check-grid { grid-template-columns: 1fr; }
   .transfer-status { display: grid; align-items: start; }
+  .copy-row, .integration-row { grid-template-columns: 1fr; display: grid; }
+  .sync-event { grid-template-columns: 1fr auto; }
+  .sync-event-status { grid-column: 1 / -1; }
+  .sync-event-meta { grid-column: 2; grid-row: 2; }
+  .sync-simulator { align-items: stretch; flex-direction: column; }
+  .integration-row .row-actions { justify-content: stretch; }
   .transfer-status b { white-space: normal; }
   .trade-rule-list { justify-content: stretch; }
   .trade-rule-list span { width: 100%; }
