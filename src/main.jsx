@@ -1156,7 +1156,7 @@ function AuthScreen({ setSession }) {
   }
   return <main className="auth-shell">
     <form className="auth-card" onSubmit={submit}>
-      <div className="mark">ZTJ</div>
+      <img className="brand-logo auth-logo" src="/ztj-logo.png" alt="Mr.Z Trading Journal" />
       <h1>Mr.Z Trading Journal</h1>
       <p>{t('Trading journal for structure, execution, psychology, and edge review.')}</p>
       <LanguageSwitcher />
@@ -1264,7 +1264,7 @@ function App() {
   return <I18nContext.Provider value={i18n}><div className="app-shell">
     <aside className="sidebar">
       <div className="sidebar-top">
-        <div className="brand"><div className="mark small">ZTJ</div><div><b>Mr.Z Trading Journal</b><span>{t('POI to outcome')}</span></div></div>
+        <div className="brand"><img className="brand-logo" src="/ztj-logo.png" alt="Mr.Z Trading Journal" /><div><b>Mr.Z Trading Journal</b><span>{t('POI to outcome')}</span></div></div>
         <ProfileCard user={currentUser} />
       </div>
       <LanguageSwitcher compact />
