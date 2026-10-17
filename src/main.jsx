@@ -1088,6 +1088,13 @@ function computeRuleMonitor(trades, accountOrBalance = 50000) {
   };
 }
 
+function medianValue(values) {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
 function groupBy(trades, key) {
   const map = new Map();
   const boolFields = new Set(['poiHasFvg', 'liquiditySweep', 'bos', 'choch']);
@@ -1128,6 +1135,33 @@ function groupBy(trades, key) {
     avgDuration: row.durationCount ? row.durationSum / row.durationCount : 0,
     winRate: row.wins + row.losses ? row.wins / (row.wins + row.losses) : 0
   })).sort((a, b) => b.pnl - a.pnl);
+}
+
+function buildSessionTickRows(trades = []) {
+  const sessionOrder = ['AS', 'LO', 'NY', 'LC'];
+  const sessionAliases = { ASIA: 'AS', AS: 'AS', LONDON: 'LO', LO: 'LO', NEWYORK: 'NY', NY: 'NY', LONDONCLOSE: 'LC', LC: 'LC' };
+  const rows = new Map();
+  trades.forEach((trade) => {
+    const rawSession = String(trade.session || 'Unspecified').toUpperCase().replace(/[^A-Z]/g, '');
+    const session = sessionAliases[rawSession] || rawSession || 'UNSPECIFIED';
+    const tick = Number(trade.maxTick ?? trade.tpTicks);
+    const row = rows.get(session) || { session, trades: 0, tickValues: [], wins: 0, losses: 0, pnl: 0 };
+    row.trades += 1;
+    row.pnl += Number(trade.pnl || 0);
+    if (trade.result === 'win') row.wins += 1;
+    if (trade.result === 'loss' || trade.result === 'reversed') row.losses += 1;
+    if (Number.isFinite(tick) && tick > 0) row.tickValues.push(tick);
+    rows.set(session, row);
+  });
+  return [...rows.values()]
+    .sort((a, b) => (sessionOrder.indexOf(a.session) - sessionOrder.indexOf(b.session)) || a.session.localeCompare(b.session))
+    .map((row) => ({
+      ...row,
+      tickCount: row.tickValues.length,
+      avgTick: row.tickValues.length ? row.tickValues.reduce((sum, value) => sum + value, 0) / row.tickValues.length : 0,
+      medianTick: medianValue(row.tickValues),
+      winRate: row.wins + row.losses ? row.wins / (row.wins + row.losses) : 0
+    }));
 }
 
 function AuthScreen({ setSession }) {
@@ -2103,6 +2137,7 @@ function MicroAnalytics({ ledger }) {
   const [includeValue, setIncludeValue] = useState(true);
   const outcomes = useMemo(() => decidedTrades(ledger), [ledger]);
   const heatmap = useMemo(() => buildMicroHeatmap(ledger), [ledger]);
+  const sessionTickRows = useMemo(() => buildSessionTickRows(ledger), [ledger]);
   const combos = useMemo(() => buildMicroCombos(outcomes, comboFilter), [outcomes, comboFilter]);
   const bestCombos = useMemo(() => [...combos].filter((row) => row.wins > 0 && row.pnl >= 0).sort((a, b) => (b.winRate - a.winRate) || (b.pnl - a.pnl) || (b.trades - a.trades)).slice(0, 5), [combos]);
   const worstCombos = useMemo(() => [...combos].filter((row) => row.losses > 0 || row.pnl < 0).sort((a, b) => (a.winRate - b.winRate) || (a.pnl - b.pnl) || (b.trades - a.trades)).slice(0, 5), [combos]);
@@ -2143,6 +2178,14 @@ function MicroAnalytics({ ledger }) {
           </React.Fragment>)}
         </div>
       </div>
+    </Panel>
+
+    <SectionLabel>Tick ตาม Session</SectionLabel>
+    <Panel title="ค่าเฉลี่ยและค่ากลาง Tick ในแต่ละ Session">
+      <p className="micro-note">Tick ใช้ค่า Max Tick ก่อน หากไม่มีจะใช้ TP Tick และแสดงจำนวนไม้ที่มีข้อมูล Tick เพื่อประกอบการตัดสินใจ</p>
+      <div className="table-wrap slim"><table><thead><tr><th>Session</th><th>Trades</th><th>มีข้อมูล Tick</th><th>ค่าเฉลี่ย Tick</th><th>ค่ากลาง Tick</th><th>Win Rate</th><th>Net P&amp;L</th></tr></thead><tbody>
+        {sessionTickRows.length ? sessionTickRows.map((row) => <tr key={row.session}><td><b>{row.session}</b></td><td>{row.trades}</td><td>{row.tickCount}</td><td>{row.tickCount ? row.avgTick.toFixed(1) : '-'}</td><td>{row.tickCount ? row.medianTick.toFixed(1) : '-'}</td><td>{pct(row.winRate * 100)}</td><td className={row.pnl >= 0 ? 'pos' : 'neg'}>{money(row.pnl)}</td></tr>) : <tr><td colSpan="7">ยังไม่มีข้อมูล Session สำหรับวิเคราะห์</td></tr>}
+      </tbody></table></div>
     </Panel>
 
     <SectionLabel>Top 5 คอมโบที่ชนะ/แพ้บ่อยที่สุด</SectionLabel>
