@@ -1217,7 +1217,12 @@ function App() {
     const [a, o, assetData, templateData] = await Promise.all([scopedApi('/accounts'), scopedApi('/options'), scopedApi('/assets'), api('/portfolio-templates')]);
     setAccounts(a.accounts);
     setPortfolioLimit(a.portfolioLimit || 5);
-    setAssets(assetData.assets?.length ? assetData.assets : defaultAssets);
+    const loadedAssets = assetData.assets?.length ? assetData.assets : defaultAssets;
+    setAssets(loadedAssets.map((asset) => ({
+      ...(defaultAssets.find((preset) => preset.symbol === asset.symbol) || {}),
+      ...asset,
+      commissionAmount: asset.commissionAmount ?? defaultAssets.find((preset) => preset.symbol === asset.symbol)?.commissionAmount ?? 0
+    })));
     setPortfolioTemplates(templateData.templates?.length ? templateData.templates : fallbackPortfolioTemplates);
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
@@ -1497,7 +1502,7 @@ function PropFirmRulesPanel({ account, rules, setPage }) {
 function TradeForm({ api, accountId, account, trades, options, assets, editing, setEditing, reload, setToast }) {
   const [form, setForm] = useState(editing || blankTrade);
   useEffect(() => setForm(editing || blankTrade), [editing]);
-  const assetPreset = assets.find((asset) => asset.symbol === form.asset);
+  const assetPreset = assets.find((asset) => asset.symbol === form.asset) || defaultAssets.find((asset) => asset.symbol === form.asset);
   const calc = enrichTrade(form, account, assetPreset);
   const projectedRules = useMemo(() => {
     const nextTrade = { ...form, id: editing?.id };
