@@ -45,21 +45,22 @@ function setNativeValue(input, value) {
 function labeledControl(labelText) {
   const workspace = document.querySelector('.workspace') || document;
   const labels = [...workspace.querySelectorAll('label.field')];
-  const label = labels.find((node) => node.querySelector(':scope > span')?.textContent?.trim() === labelText);
+  const names = Array.isArray(labelText) ? labelText : [labelText];
+  const label = labels.find((node) => names.includes(node.querySelector(':scope > span')?.textContent?.trim()));
   return label?.querySelector('input, select, textarea') || null;
 }
 
 function currentAsset() {
-  const assetSelect = labeledControl('Asset');
+  const assetSelect = labeledControl(['Asset', 'สินทรัพย์']);
   return state.assets.find((asset) => asset.symbol === assetSelect?.value);
 }
 
 function resultValue() {
-  return labeledControl('Result')?.value || '';
+  return labeledControl(['Result', 'ผลลัพธ์'])?.value || '';
 }
 
 function syncTradeCommission() {
-  const commissionInput = labeledControl('Commission');
+  const commissionInput = labeledControl(['Commission', 'ค่าคอมมิชชัน']);
   const asset = currentAsset();
   if (!commissionInput || !asset) return;
   const hint = commissionInput.parentElement?.querySelector('.field-hint');
@@ -75,7 +76,8 @@ function syncTradeCommission() {
 }
 
 function enhanceTradeForm() {
-  if (!document.querySelector('.workspace h1')?.textContent?.includes('Add Trade')) return;
+  const title = document.querySelector('.workspace h1')?.textContent || '';
+  if (!title.includes('Add Trade') && !title.includes('เพิ่มรายการเทรด')) return;
   const key = `${labeledControl('Asset')?.value || ''}|${resultValue()}`;
   if (state.tradeSyncedKey === key) return;
   state.tradeSyncedKey = key;
@@ -174,3 +176,4 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 window.addEventListener('load', scheduleEnhance);
 scheduleEnhance();
+
