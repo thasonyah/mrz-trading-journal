@@ -1145,12 +1145,14 @@ function buildSessionTickRows(trades = []) {
     const rawSession = String(trade.session || 'Unspecified').toUpperCase().replace(/[^A-Z]/g, '');
     const session = sessionAliases[rawSession] || rawSession || 'UNSPECIFIED';
     const tick = Number(trade.maxTick ?? trade.tpTicks);
-    const row = rows.get(session) || { session, trades: 0, tickValues: [], wins: 0, losses: 0, pnl: 0 };
+    const rr = Number(trade.actualR ?? trade.plannedR);
+    const row = rows.get(session) || { session, trades: 0, tickValues: [], rrValues: [], wins: 0, losses: 0, pnl: 0 };
     row.trades += 1;
     row.pnl += Number(trade.pnl || 0);
     if (trade.result === 'win') row.wins += 1;
     if (trade.result === 'loss' || trade.result === 'reversed') row.losses += 1;
     if (Number.isFinite(tick) && tick > 0) row.tickValues.push(tick);
+    if (Number.isFinite(rr)) row.rrValues.push(rr);
     rows.set(session, row);
   });
   return [...rows.values()]
@@ -1160,6 +1162,7 @@ function buildSessionTickRows(trades = []) {
       tickCount: row.tickValues.length,
       avgTick: row.tickValues.length ? row.tickValues.reduce((sum, value) => sum + value, 0) / row.tickValues.length : 0,
       medianTick: medianValue(row.tickValues),
+      avgRr: row.rrValues.length ? row.rrValues.reduce((sum, value) => sum + value, 0) / row.rrValues.length : 0,
       winRate: row.wins + row.losses ? row.wins / (row.wins + row.losses) : 0
     }));
 }
@@ -2138,6 +2141,8 @@ function MicroAnalytics({ ledger }) {
   const outcomes = useMemo(() => decidedTrades(ledger), [ledger]);
   const heatmap = useMemo(() => buildMicroHeatmap(ledger), [ledger]);
   const sessionTickRows = useMemo(() => buildSessionTickRows(ledger), [ledger]);
+  const [selectedTickSessions, setSelectedTickSessions] = useState(['AS', 'LO', 'NY', 'LC']);
+  const visibleSessionTickRows = useMemo(() => sessionTickRows.filter((row) => selectedTickSessions.includes(row.session)), [sessionTickRows, selectedTickSessions]);
   const combos = useMemo(() => buildMicroCombos(outcomes, comboFilter), [outcomes, comboFilter]);
   const bestCombos = useMemo(() => [...combos].filter((row) => row.wins > 0 && row.pnl >= 0).sort((a, b) => (b.winRate - a.winRate) || (b.pnl - a.pnl) || (b.trades - a.trades)).slice(0, 5), [combos]);
   const worstCombos = useMemo(() => [...combos].filter((row) => row.losses > 0 || row.pnl < 0).sort((a, b) => (a.winRate - b.winRate) || (a.pnl - b.pnl) || (b.trades - a.trades)).slice(0, 5), [combos]);
@@ -2183,8 +2188,9 @@ function MicroAnalytics({ ledger }) {
     <SectionLabel>Tick ตาม Session</SectionLabel>
     <Panel title="ค่าเฉลี่ยและค่ากลาง Tick ในแต่ละ Session">
       <p className="micro-note">Tick ใช้ค่า Max Tick ก่อน หากไม่มีจะใช้ TP Tick และแสดงจำนวนไม้ที่มีข้อมูล Tick เพื่อประกอบการตัดสินใจ</p>
-      <div className="table-wrap slim"><table><thead><tr><th>Session</th><th>Trades</th><th>มีข้อมูล Tick</th><th>ค่าเฉลี่ย Tick</th><th>ค่ากลาง Tick</th><th>Win Rate</th><th>Net P&amp;L</th></tr></thead><tbody>
-        {sessionTickRows.length ? sessionTickRows.map((row) => <tr key={row.session}><td><b>{row.session}</b></td><td>{row.trades}</td><td>{row.tickCount}</td><td>{row.tickCount ? row.avgTick.toFixed(1) : '-'}</td><td>{row.tickCount ? row.medianTick.toFixed(1) : '-'}</td><td>{pct(row.winRate * 100)}</td><td className={row.pnl >= 0 ? 'pos' : 'neg'}>{money(row.pnl)}</td></tr>) : <tr><td colSpan="7">ยังไม่มีข้อมูล Session สำหรับวิเคราะห์</td></tr>}
+      <div className="micro-checks session-tick-filters">{['AS', 'LO', 'NY', 'LC'].map((session) => <label key={session}><input type="checkbox" checked={selectedTickSessions.includes(session)} onChange={(event) => setSelectedTickSessions(event.target.checked ? [...new Set([...selectedTickSessions, session])] : selectedTickSessions.filter((value) => value !== session))} /><span>{session}</span></label>)}</div>
+      <div className="table-wrap slim"><table><thead><tr><th>Session</th><th>Trades</th><th>มีข้อมูล Tick</th><th>ค่าเฉลี่ย Tick</th><th>ค่ากลาง Tick</th><th>ค่าเฉลี่ย RR</th><th>Win Rate</th><th>Net P&amp;L</th></tr></thead><tbody>
+        {visibleSessionTickRows.length ? visibleSessionTickRows.map((row) => <tr key={row.session}><td><b>{row.session}</b></td><td>{row.trades}</td><td>{row.tickCount}</td><td>{row.tickCount ? row.avgTick.toFixed(1) : '-'}</td><td>{row.tickCount ? row.medianTick.toFixed(1) : '-'}</td><td>{row.rrValues.length ? fmtR(row.avgRr) : '-'}</td><td>{pct(row.winRate * 100)}</td><td className={row.pnl >= 0 ? 'pos' : 'neg'}>{money(row.pnl)}</td></tr>) : <tr><td colSpan="8">เลือก Session หรือยังไม่มีข้อมูล Session สำหรับวิเคราะห์</td></tr>}
       </tbody></table></div>
     </Panel>
 
