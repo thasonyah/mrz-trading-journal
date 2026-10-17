@@ -151,8 +151,8 @@ a:hover { text-decoration: underline; }
   border-bottom-right-radius: 3px;
 }
 .auth-card h1 { margin: 0; font-size: 22px; letter-spacing: .2px; }
-.brand-logo { display: block; width: 68px; height: 52px; object-fit: contain; border-radius: 11px; background: #050506; border: 1px solid rgba(224, 169, 46, .45); }
-.auth-logo { width: 96px; height: 96px; border-radius: 16px; margin-bottom: 4px; }
+.brand-logo { display: block; width: 80px; height: 80px; object-fit: contain; border-radius: 0; background: transparent; border: 0; }
+.auth-logo { width: 80px; height: 80px; border-radius: 0; margin-bottom: 4px; }
 .auth-card p { margin: 0; color: var(--text-faint); line-height: 1.55; }
 .auth-card label { display: grid; gap: 6px; color: var(--text-faint); font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
 .mark {
@@ -257,7 +257,7 @@ a:hover { text-decoration: underline; }
 }
 .sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 28px; }
 .brand { display: flex; gap: 18px; align-items: center; padding: 0; min-width: 0; }
-.brand .brand-logo { width: 68px; height: 52px; }
+.brand .brand-logo { width: 80px; height: 80px; }
 .brand b { display: block; font-size: 30px; line-height: 1.05; letter-spacing: .1px; }
 .brand span { display: block; color: var(--text-faint); font-size: 18px; margin-top: 3px; text-transform: uppercase; letter-spacing: 2px; }
 .profile-card {
@@ -1951,7 +1951,7 @@ tr.muted-row {
   .sidebar { padding: 28px 22px 24px; gap: 20px; }
   .sidebar-top { display: grid; justify-items: center; gap: 20px; }
   .brand { justify-self: start; gap: 18px; }
-  .brand .brand-logo { width: 62px; height: 52px; }
+  .brand .brand-logo { width: 80px; height: 80px; }
   .brand b { font-size: 28px; max-width: 210px; }
   .brand span { font-size: 17px; letter-spacing: 2px; }
   .profile-card { grid-template-columns: 120px minmax(0, 1fr); justify-items: start; text-align: left; gap: 14px; width: 100%; }
