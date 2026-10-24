@@ -1282,7 +1282,10 @@ function App() {
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
     const loadedOptions = Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options]));
-    setOptions(Object.fromEntries(Object.entries(defaultOptions).map(([key, defaults]) => [key, [...new Set([...(defaults || []), ...(loadedOptions[key] || [])])]])));
+    setOptions(Object.fromEntries(Object.entries(defaultOptions).map(([key, defaults]) => [
+      key,
+      Object.prototype.hasOwnProperty.call(loadedOptions, key) ? loadedOptions[key] : defaults
+    ])));
     setOptionLabels({ ...defaultOptionLabels, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.label || defaultOptionLabels[x.fieldKey] || x.fieldKey])) });
     if (active) {
       const data = await scopedApi(`/accounts/${active}/trades`);
