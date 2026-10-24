@@ -1,5 +1,3 @@
-Warning: truncated output (original token count: 50580)
-Total output lines: 3300
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
