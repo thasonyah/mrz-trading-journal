@@ -1595,6 +1595,17 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.option-chip input {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-align: center;
+}
 .option-chip button {
   width: 22px;
   min-width: 22px;
