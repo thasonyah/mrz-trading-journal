@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'chart.js/auto';
@@ -1880,7 +1879,55 @@ function CalendarPage({ api, accountId, trades, account, focusDate, clearFocusDa
       </div>
       <ChartWrap empty={!weekDaily.some((day) => day.trades)} tall><SmartChart type="bar" data={dayChart} options={dailyResultOptions()} /></ChartWrap>
     </Panel>
-    <Panel titl…580 tokens truncated…pan>
+    <Panel title="Daily Review Log">
+      <DailyReviewLog rows={reviewRows} onOpen={(date) => setSelectedDay(date)} />
+    </Panel>
+    {selectedSummary?.trades > 0 && <CalendarLightbox summary={selectedSummary} review={dailyReviews[selectedSummary.date] || {}} onSaveReview={saveDailyReview} onClose={() => setSelectedDay('')} />}
+  </section>;
+}
+
+function DailyReviewLog({ rows, onOpen }) {
+  if (!rows.length) return <div className="compact-empty">No daily reviews saved for this month yet.</div>;
+  return <div className="review-log">
+    {rows.map(({ date, review, summary }) => <button key={date} type="button" onClick={() => onOpen(date)}>
+      <span className="review-log-date"><b>{shortDate(date)}</b><small>{summary.trades} trades · {money(summary.pnl)}</small></span>
+      <span><b>Repeat</b><small>{review.repeat || '-'}</small></span>
+      <span><b>Reduce</b><small>{review.reduce || '-'}</small></span>
+      <span><b>Next</b><small>{review.nextPlan || review.summary || '-'}</small></span>
+    </button>)}
+  </div>;
+}
+
+function CalendarLightbox({ summary, review, onSaveReview, onClose }) {
+  const [draft, setDraft] = useState({ summary: '', repeat: '', reduce: '', nextPlan: '', ...(review || {}) });
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setDraft({ summary: '', repeat: '', reduce: '', nextPlan: '', ...(review || {}) });
+  }, [summary.date, review]);
+  async function saveReview() {
+    setSaving(true);
+    try {
+      await onSaveReview(summary.date, draft);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return <div className="lightbox-backdrop" onClick={onClose}>
+    <div className="trade-lightbox" onClick={(event) => event.stopPropagation()}>
+      <button className="lightbox-close" onClick={onClose} aria-label="Close">×</button>
+      <div className="lightbox-head">
+        <div>
+          <h2>Orders — {summary.date}</h2>
+          <p>
+            <em className="pos">{summary.wins}W</em>
+            <em className="neg">{summary.losses}L</em>
+            <em>{summary.misses}M</em>
+            <em>{summary.trades} trades</em>
+            <em>P&L: <b className={summary.pnl >= 0 ? 'pos' : 'neg'}>{money(summary.pnl)}</b></em>
+          </p>
+        </div>
+        <div className="lightbox-totals">
+          <span>Commission {money(summary.commission)}</span>
           <span>SL {money(summary.sl)}</span>
           <span>Avg RR {fmtR(summary.avgRr)}</span>
         </div>
@@ -2716,10 +2763,8 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     await saveOption(key, next);
   }
   function updateOptionValue(key, index, value) {
-    setOptionDrafts((current) => ({
-      ...current,
-      [key]: (current[key] || []).map((item, itemIndex) => itemIndex === index ? value : item)
-    }));
+    const next = (optionDrafts[key] || []).map((item, itemIndex) => itemIndex === index ? value : item);
+    setOptionDrafts({ ...optionDrafts, [key]: next });
   }
   async function removeOptionValue(key, value) {
     const next = (optionDrafts[key] || []).filter((item) => item !== value);
