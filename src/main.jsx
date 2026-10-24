@@ -169,6 +169,7 @@ const translations = {
     Add: 'เพิ่ม',
     Scope: 'ขอบเขต',
     Save: 'บันทึก',
+    'Clear set': 'ล้างชุด',
     'Commission note': 'หมายเหตุค่าคอมมิชชัน',
     'Save portfolio': 'บันทึกพอร์ต',
     Reset: 'รีเซ็ต',
@@ -2776,6 +2777,13 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     setOptionDrafts({ ...optionDrafts, [key]: next });
     await saveOption(key, next);
   }
+  async function clearOptionSet(key) {
+    const label = optionLabelDrafts[key] || defaultOptionLabels[key] || key;
+    if (!window.confirm(`ลบตัวเลือกทั้งหมดในชุด ${label} ใช่หรือไม่?`)) return;
+    setOptionDrafts({ ...optionDrafts, [key]: [] });
+    await saveOption(key, []);
+    setToast(`${label} cleared`);
+  }
   async function renameOptionLabel(key) {
     const current = optionLabelDrafts[key] || defaultOptionLabels[key] || key;
     const next = prompt('ชื่อหัวข้อ', current);
@@ -2843,6 +2851,7 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
       </div>
       <div className="option-reset-row">
         <button className="primary" onClick={() => saveOption(key)} disabled={savingOption === key}><Save size={14} />{t('Save')}</button>
+        <button className="danger-button" onClick={() => clearOptionSet(key)} disabled={savingOption === key || !(values || []).some(Boolean)}><Trash2 size={14} />{t('Clear set')}</button>
         <button onClick={() => resetOptionValues(key)} disabled={savingOption === key}><RotateCcw size={14} />{t('Reset to Default')}</button>
         <button onClick={() => resetOptionLabel(key)} disabled={savingOption === key}><RotateCcw size={14} />{t('Reset label')}</button>
       </div>
