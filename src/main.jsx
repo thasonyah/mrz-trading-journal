@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 50580)
+Total output lines: 3300
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'chart.js/auto';
@@ -1879,55 +1882,7 @@ function CalendarPage({ api, accountId, trades, account, focusDate, clearFocusDa
       </div>
       <ChartWrap empty={!weekDaily.some((day) => day.trades)} tall><SmartChart type="bar" data={dayChart} options={dailyResultOptions()} /></ChartWrap>
     </Panel>
-    <Panel title="Daily Review Log">
-      <DailyReviewLog rows={reviewRows} onOpen={(date) => setSelectedDay(date)} />
-    </Panel>
-    {selectedSummary?.trades > 0 && <CalendarLightbox summary={selectedSummary} review={dailyReviews[selectedSummary.date] || {}} onSaveReview={saveDailyReview} onClose={() => setSelectedDay('')} />}
-  </section>;
-}
-
-function DailyReviewLog({ rows, onOpen }) {
-  if (!rows.length) return <div className="compact-empty">No daily reviews saved for this month yet.</div>;
-  return <div className="review-log">
-    {rows.map(({ date, review, summary }) => <button key={date} type="button" onClick={() => onOpen(date)}>
-      <span className="review-log-date"><b>{shortDate(date)}</b><small>{summary.trades} trades · {money(summary.pnl)}</small></span>
-      <span><b>Repeat</b><small>{review.repeat || '-'}</small></span>
-      <span><b>Reduce</b><small>{review.reduce || '-'}</small></span>
-      <span><b>Next</b><small>{review.nextPlan || review.summary || '-'}</small></span>
-    </button>)}
-  </div>;
-}
-
-function CalendarLightbox({ summary, review, onSaveReview, onClose }) {
-  const [draft, setDraft] = useState({ summary: '', repeat: '', reduce: '', nextPlan: '', ...(review || {}) });
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    setDraft({ summary: '', repeat: '', reduce: '', nextPlan: '', ...(review || {}) });
-  }, [summary.date, review]);
-  async function saveReview() {
-    setSaving(true);
-    try {
-      await onSaveReview(summary.date, draft);
-    } finally {
-      setSaving(false);
-    }
-  }
-  return <div className="lightbox-backdrop" onClick={onClose}>
-    <div className="trade-lightbox" onClick={(event) => event.stopPropagation()}>
-      <button className="lightbox-close" onClick={onClose} aria-label="Close">×</button>
-      <div className="lightbox-head">
-        <div>
-          <h2>Orders — {summary.date}</h2>
-          <p>
-            <em className="pos">{summary.wins}W</em>
-            <em className="neg">{summary.losses}L</em>
-            <em>{summary.misses}M</em>
-            <em>{summary.trades} trades</em>
-            <em>P&L: <b className={summary.pnl >= 0 ? 'pos' : 'neg'}>{money(summary.pnl)}</b></em>
-          </p>
-        </div>
-        <div className="lightbox-totals">
-          <span>Commission {money(summary.commission)}</span>
+    <Panel titl…580 tokens truncated…an>
           <span>SL {money(summary.sl)}</span>
           <span>Avg RR {fmtR(summary.avgRr)}</span>
         </div>
@@ -2762,6 +2717,12 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     setOptionInputs({ ...optionInputs, [key]: '' });
     await saveOption(key, next);
   }
+  function updateOptionValue(key, index, value) {
+    setOptionDrafts((current) => ({
+      ...current,
+      [key]: (current[key] || []).map((item, itemIndex) => itemIndex === index ? value : item)
+    }));
+  }
   async function removeOptionValue(key, value) {
     const next = (optionDrafts[key] || []).filter((item) => item !== value);
     setOptionDrafts({ ...optionDrafts, [key]: next });
@@ -2831,13 +2792,14 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
         <button onClick={() => renameOptionLabel(key)} disabled={savingOption === key}><Pencil size={14} />{t('Rename')}</button>
       </div>
       <div className="option-chip-grid">
-        {(values || []).map((value) => <span className="option-chip" key={value}><b>{value}</b><button aria-label={`${t('Remove')} ${value}`} title={`${t('Remove')} ${value}`} onClick={() => removeOptionValue(key, value)} disabled={savingOption === key}><X size={15} /></button></span>)}
+        {(values || []).map((value, index) => <span className="option-chip" key={`${key}-${index}`}><input aria-label={`${optionLabelDrafts[key] || key} option ${index + 1}`} value={value} onChange={(e) => updateOptionValue(key, index, e.target.value)} /><button aria-label={`${t('Remove')} ${value}`} title={`${t('Remove')} ${value}`} onClick={() => removeOptionValue(key, value)} disabled={savingOption === key}><X size={15} /></button></span>)}
       </div>
       <div className="option-add-row">
         <input value={optionInputs[key] || ''} onChange={(e) => setOptionInputs({ ...optionInputs, [key]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addOptionValue(key); }} placeholder={t('Add new option')} />
         <button onClick={() => addOptionValue(key)} disabled={savingOption === key || !String(optionInputs[key] || '').trim()}><Plus size={15} />{t('Add')}</button>
       </div>
       <div className="option-reset-row">
+        <button className="primary" onClick={() => saveOption(key)} disabled={savingOption === key}><Save size={14} />{t('Save')}</button>
         <button onClick={() => resetOptionValues(key)} disabled={savingOption === key}><RotateCcw size={14} />{t('Reset to Default')}</button>
         <button onClick={() => resetOptionLabel(key)} disabled={savingOption === key}><RotateCcw size={14} />{t('Reset label')}</button>
       </div>
