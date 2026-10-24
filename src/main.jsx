@@ -1880,7 +1880,7 @@ function CalendarPage({ api, accountId, trades, account, focusDate, clearFocusDa
       </div>
       <ChartWrap empty={!weekDaily.some((day) => day.trades)} tall><SmartChart type="bar" data={dayChart} options={dailyResultOptions()} /></ChartWrap>
     </Panel>
-    <Panel titl…580 tokens truncated…an>
+    <Panel titl…580 tokens truncated…pan>
           <span>SL {money(summary.sl)}</span>
           <span>Avg RR {fmtR(summary.avgRr)}</span>
         </div>
