@@ -73,7 +73,7 @@ const translations = {
     'Avg RR': 'RR เฉลี่ย',
     'Avg Tick': 'Tick เฉลี่ย',
     'Latest Review Notes': 'บันทึกรีวิวล่าสุด',
-    'Risk Engine': 'Risk Engine',
+    'Risk Engine': 'เครื่องมือความเสี่ยง',
     Asset: 'สินทรัพย์',
     'Risk $': 'เงินที่เสี่ยง',
     Entry: 'จุดเข้า',
@@ -104,6 +104,7 @@ const translations = {
     Miss: 'พลาด',
     Reversed: 'กลับทาง',
     'POI and Structure': 'POI และโครงสร้าง',
+    Excursion: 'การเคลื่อนไหวของราคา',
     'HTF Bias': 'HTF Bias',
     'HTF POI': 'HTF POI',
     'MTF Structure': 'MTF Structure',
@@ -127,6 +128,7 @@ const translations = {
     Regretful: 'เสียใจ/เสียดาย',
     Reflection: 'บันทึกทบทวน',
     'Chart Journal': 'Chart Journal',
+    'Chart Journal URL': 'URL บันทึกกราฟ',
     'HTF Chart URL': 'ลิงก์กราฟ HTF',
     'MTF Chart URL': 'ลิงก์กราฟ MTF',
     'LTF Chart URL': 'ลิงก์กราฟ LTF',
@@ -585,28 +587,49 @@ const defaultAssets = [
   { symbol: 'XAUUSD', tickSize: 0.01, dollarPerPoint: 1, commissionAmount: 0 }
 ];
 
+const FIELD_OPTIONS_VERSION = 'v2026.10.25';
+const visibleFieldOptionKeys = ['session', 'mode', 'htfBias', 'htfPoi', 'mtfStructure', 'ltfEntry'];
+const hiddenLegacyFieldOptionKeys = new Set(['keyZone', 'ruleViolation', 'emotion']);
+
 const defaultOptions = {
   session: ['AS', 'LO', 'NY', 'LC'],
-  mode: ['CANDLE + CODE', 'BOSe', 'CHe', 'Flip'],
-  htfBias: ['Bullish', 'Bearish', 'Neutral'],
-  htfPoi: ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount'],
-  mtfStructure: ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range'],
-  ltfEntry: ['OB', 'FVG', 'OB + FVG', 'Breaker', 'Mitigation'],
+  mode: ['CANDLE + CODE'],
+  htfBias: ['BUY', 'SELL'],
+  htfPoi: ['OB+BOS', 'OB+CHOCH', 'OB+BOS+CHOCH'],
+  mtfStructure: ['RBD', 'DBR'],
+  ltfEntry: ['BTC', 'OB', 'OTB'],
   keyZone: ['None', 'Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM'],
   ruleViolation: ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price'],
   emotion: ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']
 };
 
+const legacyDefaultOptions = {
+  mode: ['CANDLE + CODE', 'BOSe', 'CHe', 'Flip'],
+  htfBias: ['Bullish', 'Bearish', 'Neutral'],
+  htfPoi: ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount'],
+  mtfStructure: ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range'],
+  ltfEntry: ['OB', 'FVG', 'OB + FVG', 'Breaker', 'Mitigation']
+};
+
 const defaultOptionLabels = {
+  session: 'Session',
+  mode: 'Mode',
+  htfBias: 'Bias (4h)',
+  htfPoi: 'HTF (5m)',
+  mtfStructure: 'MTF (30s)',
+  ltfEntry: 'LTF (5s)',
+  keyZone: 'Key Zone',
+  ruleViolation: 'Rule Violation',
+  emotion: 'Emotion'
+};
+
+const legacyDefaultOptionLabels = {
   session: 'Session',
   mode: 'Mode',
   htfBias: 'HTF Bias',
   htfPoi: 'HTF POI',
-  mtfStructure: 'MTF',
-  ltfEntry: 'LTF Entry',
-  keyZone: 'Key Zone',
-  ruleViolation: 'Rule Violation',
-  emotion: 'Emotion'
+  mtfStructure: 'MTF Structure',
+  ltfEntry: 'LTF Entry'
 };
 
 const blankAccount = {
@@ -694,9 +717,9 @@ const blankTrade = {
   date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'CANDLE + CODE', entryTime: '06:00', exitTime: '',
   durationTime: '', orderWaitMinutes: '', entryPrice: '', stopLoss: '', takeProfit: '', tpTicks: '', slTicks: '',
   tickSize: 0.25, dollarPerPoint: 20, lotSize: '', commissionAmount: '',
-  riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: false, receivePoint: [],
-  fvgPosition: '', liquiditySweep: false, bos: false, choch: false, mtfStructure: 'BOS',
-  ltfEntry: 'OB + FVG', keyZone: 'None', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
+  riskAmount: 30, result: 'win', htfBias: 'BUY', htfPoi: 'OB+BOS', poiType: 'OB', poiHasFvg: false, receivePoint: [],
+  fvgPosition: '', liquiditySweep: false, bos: false, choch: false, mtfStructure: 'DBR',
+  ltfEntry: 'OB', keyZone: 'None', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
   ruleViolation: 'None', emotionBefore: 'Calm', emotionAfter: 'Confident', disciplineScore: 90,
   chartHtf: '', chartMtf: '', chartLtf: '', pictureUrl: '', tipUrl: '', notes: ''
 };
@@ -1281,12 +1304,23 @@ function App() {
     setPortfolioTemplates(templateData.templates?.length ? templateData.templates : fallbackPortfolioTemplates);
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
-    const loadedOptions = Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options]));
-    setOptions(Object.fromEntries(Object.entries(defaultOptions).map(([key, defaults]) => [
-      key,
-      Object.prototype.hasOwnProperty.call(loadedOptions, key) ? loadedOptions[key] : defaults
-    ])));
-    setOptionLabels({ ...defaultOptionLabels, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.label || defaultOptionLabels[x.fieldKey] || x.fieldKey])) });
+    const deletedOptionKeys = new Set(o.options.filter((x) => x.deleted).map((x) => x.fieldKey));
+    const loadedOptions = Object.fromEntries(o.options.filter((x) => !x.deleted).map((x) => [x.fieldKey, x.options]));
+    const mergedOptions = Object.fromEntries([
+      ...Object.entries(defaultOptions).map(([key, defaults]) => [
+        key,
+        deletedOptionKeys.has(key)
+          ? undefined
+          : Object.prototype.hasOwnProperty.call(loadedOptions, key)
+          ? JSON.stringify(loadedOptions[key]) === JSON.stringify(legacyDefaultOptions[key]) ? defaults : loadedOptions[key]
+          : defaults
+      ]).filter(([, values]) => values !== undefined),
+      ...o.options
+        .filter((item) => !item.deleted && !Object.prototype.hasOwnProperty.call(defaultOptions, item.fieldKey))
+        .map((item) => [item.fieldKey, Array.isArray(item.options) ? item.options : []])
+    ]);
+    setOptions(mergedOptions);
+    setOptionLabels({ ...defaultOptionLabels, ...Object.fromEntries(o.options.filter((x) => !x.deleted).map((x) => [x.fieldKey, x.label && x.label !== legacyDefaultOptionLabels[x.fieldKey] ? x.label : (defaultOptionLabels[x.fieldKey] || x.fieldKey)])) });
     if (active) {
       const data = await scopedApi(`/accounts/${active}/trades`);
       setTrades(data.trades);
@@ -1339,7 +1373,7 @@ function App() {
     </aside>
     <main className="workspace">
       {page === 'dashboard' && <Dashboard api={scopedApi} accountId={accountId} trades={trades} stats={stats} account={account} openCalendar={(date = '') => { setCalendarFocusDate(date); setPage('calendar'); }} setPage={setPage} />}
-      {page === 'log' && <TradeForm api={scopedApi} accountId={accountId} account={account} trades={trades} options={options} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
+      {page === 'log' && <TradeForm api={scopedApi} accountId={accountId} account={account} trades={trades} options={options} optionLabels={optionLabels} assets={assets} editing={editing} setEditing={setEditing} reload={loadAll} setToast={setToast} />}
       {page === 'history' && <HistoryPage api={scopedApi} accountId={accountId} account={account} trades={trades} setTrades={setTrades} setEditing={(t) => { setEditing(t); setPage('log'); }} setToast={setToast} />}
       {page === 'calendar' && <CalendarPage api={scopedApi} accountId={accountId} trades={trades} account={account} focusDate={calendarFocusDate} clearFocusDate={() => setCalendarFocusDate('')} setToast={setToast} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
@@ -1558,7 +1592,7 @@ function PropFirmRulesPanel({ account, rules, setPage }) {
   </Panel>;
 }
 
-function TradeForm({ api, accountId, account, trades, options, assets, editing, setEditing, reload, setToast }) {
+function TradeForm({ api, accountId, account, trades, options, optionLabels, assets, editing, setEditing, reload, setToast }) {
   const { t } = useI18n();
   const [form, setForm] = useState(editing || blankTrade);
   useEffect(() => setForm(editing || blankTrade), [editing]);
@@ -1664,21 +1698,16 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
           <Field label="Entry time"><input type="time" value={form.entryTime || ''} onChange={(e) => set('entryTime', e.target.value)} /></Field>
           <Field label="Exit time"><input type="time" value={form.exitTime || ''} onChange={(e) => set('exitTime', e.target.value)} /></Field>
           <Field label="Duration Time"><input value={form.durationTime || ''} onChange={(e) => set('durationTime', e.target.value)} placeholder="Auto from time" readOnly={!!form.entryTime && !!form.exitTime} /></Field>
-          <Field label="Direction"><select value={form.direction} onChange={(e) => set('direction', e.target.value)}><option value="long">Long</option><option value="short">Short</option></select></Field>
+          <Field label="Direction"><select value={form.direction} onChange={(e) => set('direction', e.target.value)}><option value="long">BUY</option><option value="short">SELL</option></select></Field>
           <Field label="Result"><select value={form.result} onChange={(e) => set('result', e.target.value)}><option value="win">Win</option><option value="loss">Loss</option><option value="breakeven">Breakeven</option><option value="miss">Miss</option><option value="reversed">Reversed</option></select></Field>
         </div>
       </Panel>
       <Panel title="POI and Structure">
         <div className="form-grid">
-          <Field label="HTF Bias"><Select options={options.htfBias} value={form.htfBias} onChange={(v) => set('htfBias', v)} /></Field>
-          <Field label="HTF POI"><Select options={options.htfPoi} value={form.htfPoi} onChange={(v) => set('htfPoi', v)} /></Field>
-          <Field label="MTF Structure"><Select options={options.mtfStructure} value={form.mtfStructure} onChange={(v) => set('mtfStructure', v)} /></Field>
-          <Field label="LTF Entry"><Select options={options.ltfEntry} value={form.ltfEntry} onChange={(v) => set('ltfEntry', v)} /></Field>
-          <Field label="Key Zone"><Select options={options.keyZone} value={form.keyZone} onChange={(v) => set('keyZone', v)} /></Field>
-          <Field label="FVG Position"><input value={form.fvgPosition || ''} onChange={(e) => set('fvgPosition', e.target.value)} /></Field>
-        </div>
-        <div className="checks">
-          {['poiHasFvg','liquiditySweep','bos','choch'].map((key) => <label key={key}><input type="checkbox" checked={!!form[key]} onChange={(e) => set(key, e.target.checked)} />{key.replace(/([A-Z])/g, ' $1')}</label>)}
+          <Field rawLabel label={optionLabels?.htfBias || defaultOptionLabels.htfBias}><Select options={options.htfBias} value={form.htfBias} onChange={(v) => set('htfBias', v)} /></Field>
+          <Field rawLabel label={optionLabels?.htfPoi || defaultOptionLabels.htfPoi}><Select options={options.htfPoi} value={form.htfPoi} onChange={(v) => set('htfPoi', v)} /></Field>
+          <Field rawLabel label={optionLabels?.mtfStructure || defaultOptionLabels.mtfStructure}><Select options={options.mtfStructure} value={form.mtfStructure} onChange={(v) => set('mtfStructure', v)} /></Field>
+          <Field rawLabel label={optionLabels?.ltfEntry || defaultOptionLabels.ltfEntry}><Select options={options.ltfEntry} value={form.ltfEntry} onChange={(v) => set('ltfEntry', v)} /></Field>
         </div>
         <div className="checks receive-point-checks">
           <span className="check-group-label">จุดรับ</span>
@@ -1689,25 +1718,21 @@ function TradeForm({ api, accountId, account, trades, options, assets, editing, 
           }} />{point}</label>)}
         </div>
       </Panel>
-      <Panel title="Grade, Excursion, Psychology">
+      <Panel title="Excursion">
         <div className="form-grid">
-          <Field label="Setup Grade"><select value={form.setupGrade} onChange={(e) => set('setupGrade', e.target.value)}><option>A+</option><option>A</option><option>B</option><option>C</option></select></Field>
-          <Field label="Setup Score"><input type="number" min="0" max="100" value={form.setupScore} onChange={(e) => set('setupScore', e.target.value)} /></Field>
           <Field label="Max RR"><input type="number" step="any" value={form.maxR} onChange={(e) => set('maxR', e.target.value)} /></Field>
           <Field label="Max Tick"><input type="number" step="any" value={form.maxTick ?? ''} onChange={(e) => set('maxTick', e.target.value)} /></Field>
-          <Field label="MFE / MAE"><div className="inline-inputs"><input type="number" step="any" value={form.mfeR} onChange={(e) => set('mfeR', e.target.value)} /><input type="number" step="any" value={form.maeR} onChange={(e) => set('maeR', e.target.value)} /></div></Field>
-          <Field label="Rule Violation"><Select options={options.ruleViolation} value={form.ruleViolation} onChange={(v) => set('ruleViolation', v)} /></Field>
           <Field label="Emotion After"><select value={form.emotionAfter} onChange={(e) => set('emotionAfter', e.target.value)}>{options.emotion.map((emotion) => <option key={emotion} value={emotion}>{t(emotion)}</option>)}</select></Field>
         </div>
         <Field label="Reflection"><textarea value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} placeholder="Why this trade, what followed the plan, what to avoid next time..." /></Field>
       </Panel>
-      <Panel title="Chart Journal" className="chart-journal-panel">
+      <Panel title="Chart Journal URL" className="chart-journal-panel">
         <div className="form-grid">
-          <Field label="HTF Chart URL"><input value={form.chartHtf || ''} onChange={(e) => set('chartHtf', e.target.value)} /></Field>
-          <Field label="MTF Chart URL"><input value={form.chartMtf || ''} onChange={(e) => set('chartMtf', e.target.value)} /></Field>
-          <Field label="LTF Chart URL"><input value={form.chartLtf || ''} onChange={(e) => set('chartLtf', e.target.value)} /></Field>
-          <Field label="Picture URL"><input value={form.pictureUrl || ''} onChange={(e) => set('pictureUrl', e.target.value)} /></Field>
-          <Field label="Tip URL"><input value={form.tipUrl || ''} onChange={(e) => set('tipUrl', e.target.value)} /></Field>
+          <Field rawLabel label="HTF (5m)"><input value={form.chartHtf || ''} onChange={(e) => set('chartHtf', e.target.value)} /></Field>
+          <Field rawLabel label="MTF (30s)"><input value={form.chartMtf || ''} onChange={(e) => set('chartMtf', e.target.value)} /></Field>
+          <Field rawLabel label="LTF (5s)"><input value={form.chartLtf || ''} onChange={(e) => set('chartLtf', e.target.value)} /></Field>
+          <Field label="TP/SL"><input value={form.pictureUrl || ''} onChange={(e) => set('pictureUrl', e.target.value)} /></Field>
+          <Field label="Position Trade"><input value={form.tipUrl || ''} onChange={(e) => set('tipUrl', e.target.value)} /></Field>
         </div>
         <div className="actions"><button className="primary" type="submit"><Save size={16} />{editing ? 'Update trade' : 'Save trade'}</button>{editing && <button type="button" onClick={() => setEditing(null)}>Cancel</button>}</div>
       </Panel>
@@ -2665,6 +2690,8 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
   const [optionDrafts, setOptionDrafts] = useState({});
   const [optionLabelDrafts, setOptionLabelDrafts] = useState({});
   const [optionInputs, setOptionInputs] = useState({});
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [showNewFieldForm, setShowNewFieldForm] = useState(false);
   const [assetDrafts, setAssetDrafts] = useState([]);
   const [savingOption, setSavingOption] = useState('');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -2787,6 +2814,20 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     await saveOption(key, []);
     setToast(`${label} cleared`);
   }
+  async function deleteFieldOptionSet(key) {
+    const label = optionLabelDrafts[key] || defaultOptionLabels[key] || key;
+    if (!window.confirm(`ลบ Field ${label} ออกจากระบบใช่หรือไม่?`)) return;
+    setSavingOption(key);
+    try {
+      await api(`/options/${key}`, { method: 'DELETE' });
+      await reload(account.id);
+      setToast(`${label} deleted`);
+    } catch (error) {
+      setToast(error.message || 'Could not delete field');
+    } finally {
+      setSavingOption('');
+    }
+  }
   async function renameOptionLabel(key) {
     const current = optionLabelDrafts[key] || defaultOptionLabels[key] || key;
     const next = prompt('ชื่อหัวข้อ', current);
@@ -2799,6 +2840,24 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     const label = defaultOptionLabels[key] || key;
     setOptionLabelDrafts({ ...optionLabelDrafts, [key]: label });
     await saveOption(key, optionDrafts[key], label);
+  }
+  async function addFieldOptionSet() {
+    const label = newFieldLabel.trim();
+    if (!label) return;
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32) || 'field';
+    const baseKey = `custom_${slug}`;
+    let key = baseKey;
+    let index = 2;
+    while (Object.prototype.hasOwnProperty.call(optionDrafts, key)) key = `${baseKey}_${index++}`;
+    try {
+      await api(`/options/${key}`, { method: 'PUT', body: JSON.stringify({ label, options: [] }) });
+      setNewFieldLabel('');
+      setShowNewFieldForm(false);
+      await reload(account.id);
+      setToast(`Created ${label}`);
+    } catch (error) {
+      setToast(error.message || 'Could not create field option set');
+    }
   }
   async function saveAsset(asset) {
     if (asset.id) await api(`/assets/${asset.id}`, { method: 'PUT', body: JSON.stringify(asset) });
@@ -2821,6 +2880,12 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
   function togglePassword(key) {
     setVisiblePasswords({ ...visiblePasswords, [key]: !visiblePasswords[key] });
   }
+  const optionEntries = [
+    ...visibleFieldOptionKeys
+      .filter((key) => Object.prototype.hasOwnProperty.call(optionDrafts, key))
+      .map((key) => [key, optionDrafts[key]]),
+    ...Object.entries(optionDrafts).filter(([key]) => !visibleFieldOptionKeys.includes(key) && !hiddenLegacyFieldOptionKeys.has(key))
+  ];
   return <section><Header title="Settings" hint={`${t('Portfolios, presets, and customizable field options')} (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />{t('New portfolio')}</button>} />
     <Panel title="Language"><LanguageSwitcher /></Panel>
     <Panel title="Profile"><div className="profile-settings">
@@ -2840,12 +2905,24 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     <TradingViewIntegrationPanel api={api} accounts={accounts} account={account} setToast={setToast} />
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder={t('Symbol')} /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><input type="number" step="any" min="0" value={asset.commissionAmount ?? 0} onChange={(e) => updateAsset(index, 'commissionAmount', e.target.value)} placeholder="Commission/contract" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1, commissionAmount: 0 }])}><Plus size={16} />{t('Add asset')}</button></div></Panel>
     <DataTransferPanel api={api} accounts={accounts} account={account} reload={reload} setToast={setToast} /></div>
-    <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, values]) => <div className="option-card" key={key}>
+    <Panel title={<span className="field-options-title"><span>Field Options</span><small>{FIELD_OPTIONS_VERSION}</small></span>}>
+      <div className="field-options-toolbar">
+        <p>กำหนดชุดตัวเลือกสำหรับฟอร์มบันทึกเทรด</p>
+        <button type="button" onClick={() => setShowNewFieldForm((open) => !open)}><Plus size={15} />{showNewFieldForm ? 'Cancel' : 'Add field'}</button>
+      </div>
+      {showNewFieldForm && <div className="new-field-form">
+        <input value={newFieldLabel} onChange={(e) => setNewFieldLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addFieldOptionSet(); }} placeholder="ชื่อแถบใหม่ เช่น Market Type" autoFocus />
+        <button type="button" className="primary" onClick={addFieldOptionSet} disabled={!newFieldLabel.trim()}><Save size={14} />Create</button>
+      </div>}
+      <div className="option-editor">{optionEntries.map(([key, values]) => <div className="option-card" key={key}>
       <div className="option-card-head">
         <h3>{optionLabelDrafts[key] || defaultOptionLabels[key] || key}</h3>
-        <button onClick={() => renameOptionLabel(key)} disabled={savingOption === key}><Pencil size={14} />{t('Rename')}</button>
+        <div className="option-card-head-actions">
+          <button onClick={() => renameOptionLabel(key)} disabled={savingOption === key}><Pencil size={14} />{t('Rename')}</button>
+          <button className="field-delete-button" onClick={() => deleteFieldOptionSet(key)} disabled={savingOption === key}><Trash2 size={14} />Delete field</button>
+        </div>
       </div>
-      <div className="option-chip-grid">
+      <div className={`option-chip-grid option-chip-grid-${key}`}>
         {(values || []).map((value, index) => <span className="option-chip" key={`${key}-${index}`}><input aria-label={`${optionLabelDrafts[key] || key} option ${index + 1}`} value={value} onChange={(e) => updateOptionValue(key, index, e.target.value)} /><button aria-label={`${t('Remove')} ${value}`} title={`${t('Remove')} ${value}`} onClick={() => removeOptionValue(key, value)} disabled={savingOption === key}><X size={15} /></button></span>)}
       </div>
       <div className="option-add-row">
@@ -3300,9 +3377,9 @@ function Kpi({ label, value, tone }) {
   const { t } = useI18n();
   return <div className={`kpi ${tone || ''}`}><span>{t(label)}</span><b>{value}</b></div>;
 }
-function Field({ label, children }) {
+function Field({ label, rawLabel = false, children }) {
   const { t } = useI18n();
-  return <label className="field"><span>{t(label)}</span>{children}</label>;
+  return <label className="field"><span className={rawLabel ? 'field-label-raw' : ''}>{t(label)}</span>{children}</label>;
 }
 function Select({ options = [], value, onChange }) { return <select value={value || ''} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o}>{o}</option>)}</select>; }
 function ChartWrap({ empty, children, tall = false }) { return <div className={`chart-wrap ${tall ? 'tall' : ''}`}>{empty ? <div className="empty">No data yet</div> : children}</div>; }

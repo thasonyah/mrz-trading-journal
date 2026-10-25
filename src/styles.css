@@ -203,7 +203,7 @@ a:hover { text-decoration: underline; }
   font-size: 11px;
   font-weight: 900;
   letter-spacing: .8px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 .auth-card .language-switcher {
   justify-content: center;
@@ -497,6 +497,7 @@ tr.watch-row {
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .form-grid.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field { display: grid; gap: 6px; color: var(--text-faint); font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+.field-label-raw { text-transform: none; letter-spacing: 0; }
 .field input, .field select, .field textarea { color: var(--text); font-weight: 500; text-transform: none; letter-spacing: 0; }
 .field-hint {
   color: var(--text-faint);
@@ -1535,6 +1536,13 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   padding: 0;
 }
 .option-editor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.field-options-title { display: inline-flex; align-items: center; gap: 10px; }
+.field-options-title small { color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.field-options-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.field-options-toolbar p { margin: 0; color: var(--text-muted); font-size: 13px; }
+.field-options-toolbar button, .new-field-form button { justify-content: center; }
+.new-field-form { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px dashed rgba(224, 169, 46, .45); background: rgba(224, 169, 46, .05); }
+.new-field-form input { min-height: 44px; }
 .option-card {
   display: grid;
   grid-template-rows: auto auto auto auto 1fr;
@@ -1559,7 +1567,7 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   font-size: 19px;
   font-weight: 900;
   letter-spacing: .16em;
-  text-transform: uppercase;
+  text-transform: none;
 }
 .option-card-head button {
   min-height: 30px;
@@ -1573,21 +1581,27 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   background: transparent;
   color: #8fc6f5;
 }
+.option-card-head-actions { display: inline-flex; align-items: center; gap: 12px; }
+.option-card-head-actions .field-delete-button { color: var(--loss); }
+.option-card-head-actions .field-delete-button:hover { color: #ff8589; }
 .option-chip-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 16px;
 }
+.option-chip-grid-mode { grid-template-columns: minmax(0, 1fr); }
+.option-chip-grid-htfPoi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .option-chip {
   min-width: 0;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   color: var(--text);
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 900;
-  letter-spacing: .08em;
+  letter-spacing: 0;
 }
 .option-chip b {
   min-width: 0;
@@ -1599,14 +1613,17 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   width: 100%;
   min-width: 0;
   min-height: 36px;
-  padding: 6px 8px;
+  padding: 6px 22px 6px 4px;
   color: var(--text);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: .02em;
+  letter-spacing: 0;
   text-align: center;
 }
 .option-chip button {
+  position: absolute;
+  top: 7px;
+  right: 2px;
   width: 22px;
   min-width: 22px;
   min-height: 22px;
@@ -2008,6 +2025,9 @@ tr.muted-row {
   .profile-copy span { font-size: 13px; }
   .mini-label { font-size: 13px; letter-spacing: 2.4px; }
   .sidebar select { min-height: 48px; font-size: 16px; }
+  .field-options-toolbar { align-items: stretch; flex-direction: column; }
+  .field-options-toolbar button { width: 100%; justify-content: center; }
+  .new-field-form { grid-template-columns: 1fr; }
   .sidebar nav { grid-template-columns: 1fr; gap: 8px; }
   .sidebar nav button { min-height: 46px; font-size: 16px; }
   .sidebar-foot { display: none; }
