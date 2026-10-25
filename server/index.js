@@ -1050,7 +1050,10 @@ app.get('/api/options', auth, asyncHandler(async (req, res) => {
   const userId = scopeUserId(req);
   await ensureUserDefaults(userId);
   const rows = await all('SELECT field_key "fieldKey", label, options_json "optionsJson" FROM option_sets WHERE user_id=?', [userId]);
-  res.json({ options: rows.map((r) => ({ fieldKey: r.fieldKey, label: r.label, options: JSON.parse(r.optionsJson) })) });
+  res.json({ options: rows.map((r) => {
+    const parsed = JSON.parse(r.optionsJson || '[]');
+    return { fieldKey: r.fieldKey, label: r.label, options: Array.isArray(parsed) ? parsed : [], deleted: parsed?.__deleted === true };
+  }) });
 }));
 
 app.put('/api/options/:fieldKey', auth, asyncHandler(async (req, res) => {
@@ -1058,6 +1061,14 @@ app.put('/api/options/:fieldKey', auth, asyncHandler(async (req, res) => {
   const label = String(req.body.label || req.params.fieldKey);
   const options = Array.isArray(req.body.options) ? req.body.options.map(String).filter(Boolean) : [];
   await run(upsertOptionSql(), [userId, req.params.fieldKey, label, JSON.stringify(options)]);
+  res.json({ ok: true });
+}));
+
+app.delete('/api/options/:fieldKey', auth, asyncHandler(async (req, res) => {
+  const userId = scopeUserId(req);
+  const row = await get('SELECT label FROM option_sets WHERE user_id=? AND field_key=?', [userId, req.params.fieldKey]);
+  if (!row) return res.status(404).json({ error: 'Field not found' });
+  await run(upsertOptionSql(), [userId, req.params.fieldKey, row.label || req.params.fieldKey, JSON.stringify({ __deleted: true })]);
   res.json({ ok: true });
 }));
 
