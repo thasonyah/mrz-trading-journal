@@ -1535,6 +1535,13 @@ tr.selected td { color: var(--accent); font-weight: 800; }
   padding: 0;
 }
 .option-editor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.field-options-title { display: inline-flex; align-items: center; gap: 10px; }
+.field-options-title small { color: var(--text-faint); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.field-options-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.field-options-toolbar p { margin: 0; color: var(--text-muted); font-size: 13px; }
+.field-options-toolbar button, .new-field-form button { justify-content: center; }
+.new-field-form { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px dashed rgba(224, 169, 46, .45); background: rgba(224, 169, 46, .05); }
+.new-field-form input { min-height: 44px; }
 .option-card {
   display: grid;
   grid-template-rows: auto auto auto auto 1fr;
@@ -2008,6 +2015,9 @@ tr.muted-row {
   .profile-copy span { font-size: 13px; }
   .mini-label { font-size: 13px; letter-spacing: 2.4px; }
   .sidebar select { min-height: 48px; font-size: 16px; }
+  .field-options-toolbar { align-items: stretch; flex-direction: column; }
+  .field-options-toolbar button { width: 100%; justify-content: center; }
+  .new-field-form { grid-template-columns: 1fr; }
   .sidebar nav { grid-template-columns: 1fr; gap: 8px; }
   .sidebar nav button { min-height: 46px; font-size: 16px; }
   .sidebar-foot { display: none; }
