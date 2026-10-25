@@ -1699,7 +1699,7 @@ function TradeForm({ api, accountId, account, trades, options, optionLabels, ass
           <Field label="Exit time"><input type="time" value={form.exitTime || ''} onChange={(e) => set('exitTime', e.target.value)} /></Field>
           <Field label="Duration Time"><input value={form.durationTime || ''} onChange={(e) => set('durationTime', e.target.value)} placeholder="Auto from time" readOnly={!!form.entryTime && !!form.exitTime} /></Field>
           <Field label="Direction"><select value={form.direction} onChange={(e) => set('direction', e.target.value)}><option value="long">BUY</option><option value="short">SELL</option></select></Field>
-          <Field label="Result"><select value={form.result} onChange={(e) => set('result', e.target.value)}><option value="win">Win</option><option value="loss">Loss</option><option value="breakeven">Breakeven</option><option value="miss">Miss</option><option value="reversed">Reversed</option></select></Field>
+          <Field label="Result"><select value={form.result} onChange={(e) => set('result', e.target.value)}>{form.result === 'breakeven' && <option value="breakeven" hidden>Breakeven</option>}{form.result === 'reversed' && <option value="reversed" hidden>Reversed</option>}<option value="win">Win</option><option value="loss">Loss</option><option value="miss">Miss</option></select></Field>
         </div>
       </Panel>
       <Panel title="POI and Structure">
@@ -1760,20 +1760,35 @@ function HistoryPage({ api, accountId, account, trades, setTrades, setEditing, s
   }
   return <section>
     <Header title="History" hint={`${list.length} of ${trades.length} trades`} action={<button onClick={exportJson}><Download size={16} />Export JSON</button>} />
-    <div className="toolbar"><div className="search"><Filter size={16} /><input placeholder="Search setup, notes, result, asset..." value={q} onChange={(e) => setQ(e.target.value)} /></div><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All results</option><option value="win">Win</option><option value="loss">Loss</option><option value="breakeven">Breakeven</option><option value="miss">Miss</option></select></div>
-    <div className="table-wrap"><table><thead><tr>{['Date','Asset','Session','Mode','Dir','Ticks','RR','SL$','TP$','Balance','Con Loss','DD%','Setup','LTF Entry','Net P&L','Charts',''].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>
-      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>{t.mode || '-'}</td><td>{t.direction}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}<small>Max {t.maxTick ?? '-'}</small></td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td>{pct(t.ddLossPct * 100)}<small>{pct(t.sumDdLossPct * 100)}</small></td><td><b>{t.setupGrade}</b><small>{t.htfBias} {t.htfPoi}</small></td><td><b>{t.ltfEntry || '-'}</b><small>{t.keyZone || '-'}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}<small>Fee {money(t.commissionAmount || 0)}</small></td><td><ChartLinks trade={t} /></td><td className="row-actions"><button onClick={() => setEditing(trades.find((rawTrade) => rawTrade.id === t.id) || t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
+    <div className="toolbar"><div className="search"><Filter size={16} /><input placeholder="Search setup, notes, result, asset..." value={q} onChange={(e) => setQ(e.target.value)} /></div><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All results</option><option value="win">Win</option><option value="loss">Loss</option><option value="miss">Miss</option></select></div>
+    <div className="table-wrap"><table><thead><tr>{['Date','Asset','Session','Mode','Dir','Ticks','RR','SL$','TP$','Balance','Con Loss','LTF Entry','Net P&L','Charts',''].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>
+      {list.map((t) => <tr key={t.id}><td>{t.date}<small>{t.entryTime}{t.durationTime ? ` / ${t.durationTime}` : ''}</small></td><td>{t.asset}</td><td>{t.session}</td><td>CANDLE + CODE</td><td>{displayDirection(t.direction)}</td><td>{t.tpTicks || '-'} / {t.slTicks || '-'}<small>Max {t.maxTick ?? '-'}</small></td><td>{fmtR(t.plannedR)}<small>Max {fmtR(t.maxR)}</small></td><td>{money(t.slAmount)}</td><td>{money(t.tpAmount)}<small>{pct(t.tpPercent * 100)}</small></td><td>{money(t.balanceAfter)}</td><td>{t.conLoss || 0}<small>{money(t.sumConLossAmount || 0)}</small></td><td><b>{displayLtfEntry(t.ltfEntry)}</b><small>{t.keyZone || '-'}</small></td><td className={t.pnl >= 0 ? 'pos' : 'neg'}>{money(t.pnl)}<small>Fee {money(t.commissionAmount || 0)}</small></td><td><ChartLinks trade={t} /></td><td className="row-actions"><button onClick={() => setEditing(trades.find((rawTrade) => rawTrade.id === t.id) || t)}>Edit</button><button onClick={() => del(t.id)}><Trash2 size={14} /></button></td></tr>)}
     </tbody></table></div>
   </section>;
 }
 
+function displayDirection(direction) {
+  if (direction === 'long') return 'BUY';
+  if (direction === 'short') return 'SELL';
+  return direction || '-';
+}
+
+function displayLtfEntry(value) {
+  const labels = {
+    'OB2CHoCH': 'BTC',
+    'OB2BOS': 'OTB',
+    'First OB': 'OB'
+  };
+  return labels[value] || value || '-';
+}
+
 function ChartLinks({ trade }) {
   const links = [
-    ['H', trade.chartHtf],
-    ['M', trade.chartMtf],
-    ['L', trade.chartLtf],
-    ['P', trade.pictureUrl],
-    ['T', trade.tipUrl]
+    ['5m', trade.chartHtf],
+    ['30s', trade.chartMtf],
+    ['5s', trade.chartLtf],
+    ['E', trade.pictureUrl],
+    ['P', trade.tipUrl]
   ];
   return <table className="chart-link-table"><thead><tr>{links.map(([label]) => <th key={label}>{label}</th>)}</tr></thead><tbody><tr>{links.map(([label, url]) => <td key={label}>{url ? <a href={url} target="_blank" rel="noreferrer">↗</a> : <span>-</span>}</td>)}</tr></tbody></table>;
 }
