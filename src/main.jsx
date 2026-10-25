@@ -1,4 +1,4 @@
-TESTimport React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'chart.js/auto';
 import { Chart as ReactChart } from 'react-chartjs-2';
