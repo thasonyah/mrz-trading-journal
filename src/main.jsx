@@ -585,25 +585,37 @@ const defaultAssets = [
   { symbol: 'XAUUSD', tickSize: 0.01, dollarPerPoint: 1, commissionAmount: 0 }
 ];
 
+const FIELD_OPTIONS_VERSION = 'v2026.10.25';
+const visibleFieldOptionKeys = ['session', 'mode', 'htfBias', 'htfPoi', 'mtfStructure', 'ltfEntry'];
+const hiddenLegacyFieldOptionKeys = new Set(['keyZone', 'ruleViolation', 'emotion']);
+
 const defaultOptions = {
   session: ['AS', 'LO', 'NY', 'LC'],
-  mode: ['CANDLE + CODE', 'BOSe', 'CHe', 'Flip'],
-  htfBias: ['Bullish', 'Bearish', 'Neutral'],
-  htfPoi: ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount'],
-  mtfStructure: ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range'],
-  ltfEntry: ['OB', 'FVG', 'OB + FVG', 'Breaker', 'Mitigation'],
+  mode: ['CANDLE + CODE'],
+  htfBias: ['BUY', 'SELL'],
+  htfPoi: ['OB+BOS', 'OB+CHOCH', 'OB+BOS+CHOCH'],
+  mtfStructure: ['RBD', 'DBR'],
+  ltfEntry: ['BTC', 'OB', 'OTB'],
   keyZone: ['None', 'Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM'],
   ruleViolation: ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price'],
   emotion: ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']
 };
 
+const legacyDefaultOptions = {
+  mode: ['CANDLE + CODE', 'BOSe', 'CHe', 'Flip'],
+  htfBias: ['Bullish', 'Bearish', 'Neutral'],
+  htfPoi: ['OB', 'FVG', 'Supply', 'Demand', 'Liquidity', 'Premium', 'Discount'],
+  mtfStructure: ['BOS', 'CHoCH', 'Sweep', 'Internal BOS', 'Range'],
+  ltfEntry: ['OB', 'FVG', 'OB + FVG', 'Breaker', 'Mitigation']
+};
+
 const defaultOptionLabels = {
   session: 'Session',
   mode: 'Mode',
-  htfBias: 'HTF Bias',
-  htfPoi: 'HTF POI',
-  mtfStructure: 'MTF',
-  ltfEntry: 'LTF Entry',
+  htfBias: 'HTFBIAS (H4)',
+  htfPoi: 'HTF (5M)',
+  mtfStructure: 'MTF (30S)',
+  ltfEntry: 'LTF (5S)',
   keyZone: 'Key Zone',
   ruleViolation: 'Rule Violation',
   emotion: 'Emotion'
@@ -694,9 +706,9 @@ const blankTrade = {
   date: today(), asset: 'NQ1', direction: 'short', session: 'AS', mode: 'CANDLE + CODE', entryTime: '06:00', exitTime: '',
   durationTime: '', orderWaitMinutes: '', entryPrice: '', stopLoss: '', takeProfit: '', tpTicks: '', slTicks: '',
   tickSize: 0.25, dollarPerPoint: 20, lotSize: '', commissionAmount: '',
-  riskAmount: 30, result: 'win', htfBias: 'Bullish', htfPoi: 'OB', poiType: 'OB', poiHasFvg: false, receivePoint: [],
-  fvgPosition: '', liquiditySweep: false, bos: false, choch: false, mtfStructure: 'BOS',
-  ltfEntry: 'OB + FVG', keyZone: 'None', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
+  riskAmount: 30, result: 'win', htfBias: 'BUY', htfPoi: 'OB+BOS', poiType: 'OB', poiHasFvg: false, receivePoint: [],
+  fvgPosition: '', liquiditySweep: false, bos: false, choch: false, mtfStructure: 'DBR',
+  ltfEntry: 'OB', keyZone: 'None', setupGrade: 'A', setupScore: 80, maxR: '', maxTick: '', mfeR: '', maeR: '',
   ruleViolation: 'None', emotionBefore: 'Calm', emotionAfter: 'Confident', disciplineScore: 90,
   chartHtf: '', chartMtf: '', chartLtf: '', pictureUrl: '', tipUrl: '', notes: ''
 };
@@ -1282,10 +1294,18 @@ function App() {
     const active = nextAccountId || a.accounts[0]?.id;
     setAccountId(active);
     const loadedOptions = Object.fromEntries(o.options.map((x) => [x.fieldKey, x.options]));
-    setOptions(Object.fromEntries(Object.entries(defaultOptions).map(([key, defaults]) => [
-      key,
-      Object.prototype.hasOwnProperty.call(loadedOptions, key) ? loadedOptions[key] : defaults
-    ])));
+    const mergedOptions = Object.fromEntries([
+      ...Object.entries(defaultOptions).map(([key, defaults]) => [
+        key,
+        Object.prototype.hasOwnProperty.call(loadedOptions, key)
+          ? JSON.stringify(loadedOptions[key]) === JSON.stringify(legacyDefaultOptions[key]) ? defaults : loadedOptions[key]
+          : defaults
+      ]),
+      ...o.options
+        .filter((item) => !Object.prototype.hasOwnProperty.call(defaultOptions, item.fieldKey))
+        .map((item) => [item.fieldKey, Array.isArray(item.options) ? item.options : []])
+    ]);
+    setOptions(mergedOptions);
     setOptionLabels({ ...defaultOptionLabels, ...Object.fromEntries(o.options.map((x) => [x.fieldKey, x.label || defaultOptionLabels[x.fieldKey] || x.fieldKey])) });
     if (active) {
       const data = await scopedApi(`/accounts/${active}/trades`);
@@ -2665,6 +2685,8 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
   const [optionDrafts, setOptionDrafts] = useState({});
   const [optionLabelDrafts, setOptionLabelDrafts] = useState({});
   const [optionInputs, setOptionInputs] = useState({});
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [showNewFieldForm, setShowNewFieldForm] = useState(false);
   const [assetDrafts, setAssetDrafts] = useState([]);
   const [savingOption, setSavingOption] = useState('');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -2800,6 +2822,24 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     setOptionLabelDrafts({ ...optionLabelDrafts, [key]: label });
     await saveOption(key, optionDrafts[key], label);
   }
+  async function addFieldOptionSet() {
+    const label = newFieldLabel.trim();
+    if (!label) return;
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32) || 'field';
+    const baseKey = `custom_${slug}`;
+    let key = baseKey;
+    let index = 2;
+    while (Object.prototype.hasOwnProperty.call(optionDrafts, key)) key = `${baseKey}_${index++}`;
+    try {
+      await api(`/options/${key}`, { method: 'PUT', body: JSON.stringify({ label, options: [] }) });
+      setNewFieldLabel('');
+      setShowNewFieldForm(false);
+      await reload(account.id);
+      setToast(`Created ${label}`);
+    } catch (error) {
+      setToast(error.message || 'Could not create field option set');
+    }
+  }
   async function saveAsset(asset) {
     if (asset.id) await api(`/assets/${asset.id}`, { method: 'PUT', body: JSON.stringify(asset) });
     else await api('/assets', { method: 'POST', body: JSON.stringify(asset) });
@@ -2821,6 +2861,12 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
   function togglePassword(key) {
     setVisiblePasswords({ ...visiblePasswords, [key]: !visiblePasswords[key] });
   }
+  const optionEntries = [
+    ...visibleFieldOptionKeys
+      .filter((key) => Object.prototype.hasOwnProperty.call(optionDrafts, key))
+      .map((key) => [key, optionDrafts[key]]),
+    ...Object.entries(optionDrafts).filter(([key]) => !visibleFieldOptionKeys.includes(key) && !hiddenLegacyFieldOptionKeys.has(key))
+  ];
   return <section><Header title="Settings" hint={`${t('Portfolios, presets, and customizable field options')} (${accounts.length}/${portfolioLimit})`} action={<button onClick={addAccount} disabled={accounts.length >= portfolioLimit}><Plus size={16} />{t('New portfolio')}</button>} />
     <Panel title="Language"><LanguageSwitcher /></Panel>
     <Panel title="Profile"><div className="profile-settings">
@@ -2840,7 +2886,16 @@ function SettingsPage({ api, accounts, account, options, optionLabels, assets, p
     <TradingViewIntegrationPanel api={api} accounts={accounts} account={account} setToast={setToast} />
     <div className="grid two settings-lower"><Panel title="Asset Presets"><div className="asset-editor">{assetDrafts.map((asset, index) => <div className="asset-row" key={asset.id || index}><input value={asset.symbol} onChange={(e) => updateAsset(index, 'symbol', e.target.value)} placeholder={t('Symbol')} /><input type="number" step="any" value={asset.tickSize} onChange={(e) => updateAsset(index, 'tickSize', e.target.value)} placeholder="Point" /><input type="number" step="any" value={asset.dollarPerPoint} onChange={(e) => updateAsset(index, 'dollarPerPoint', e.target.value)} placeholder="Lot1 point/$" /><input type="number" step="any" min="0" value={asset.commissionAmount ?? 0} onChange={(e) => updateAsset(index, 'commissionAmount', e.target.value)} placeholder="Commission/contract" /><button onClick={() => saveAsset(asset)}><Save size={14} /></button><button onClick={() => deleteAsset(asset)}><Trash2 size={14} /></button></div>)}<button onClick={() => setAssetDrafts([...assetDrafts, { symbol: '', tickSize: 1, dollarPerPoint: 1, commissionAmount: 0 }])}><Plus size={16} />{t('Add asset')}</button></div></Panel>
     <DataTransferPanel api={api} accounts={accounts} account={account} reload={reload} setToast={setToast} /></div>
-    <Panel title="Field Options"><div className="option-editor">{Object.entries(optionDrafts).map(([key, values]) => <div className="option-card" key={key}>
+    <Panel title={<span className="field-options-title"><span>Field Options</span><small>{FIELD_OPTIONS_VERSION}</small></span>}>
+      <div className="field-options-toolbar">
+        <p>กำหนดชุดตัวเลือกสำหรับฟอร์มบันทึกเทรด</p>
+        <button type="button" onClick={() => setShowNewFieldForm((open) => !open)}><Plus size={15} />{showNewFieldForm ? 'Cancel' : 'Add field'}</button>
+      </div>
+      {showNewFieldForm && <div className="new-field-form">
+        <input value={newFieldLabel} onChange={(e) => setNewFieldLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addFieldOptionSet(); }} placeholder="ชื่อแถบใหม่ เช่น Market Type" autoFocus />
+        <button type="button" className="primary" onClick={addFieldOptionSet} disabled={!newFieldLabel.trim()}><Save size={14} />Create</button>
+      </div>}
+      <div className="option-editor">{optionEntries.map(([key, values]) => <div className="option-card" key={key}>
       <div className="option-card-head">
         <h3>{optionLabelDrafts[key] || defaultOptionLabels[key] || key}</h3>
         <button onClick={() => renameOptionLabel(key)} disabled={savingOption === key}><Pencil size={14} />{t('Rename')}</button>
