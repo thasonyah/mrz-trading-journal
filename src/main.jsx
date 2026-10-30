@@ -587,8 +587,8 @@ const defaultAssets = [
   { symbol: 'XAUUSD', tickSize: 0.01, dollarPerPoint: 1, commissionAmount: 0 }
 ];
 
-const FIELD_OPTIONS_VERSION = 'v2026.10.25';
-const visibleFieldOptionKeys = ['session', 'mode', 'htfBias', 'htfPoi', 'mtfStructure', 'ltfEntry'];
+const FIELD_OPTIONS_VERSION = 'v2026.10.30';
+const visibleFieldOptionKeys = ['session', 'mode', 'htfBias', 'htfPoi', 'mtfStructure', 'ltfEntry', 'receivePoint'];
 const hiddenLegacyFieldOptionKeys = new Set(['keyZone', 'ruleViolation', 'emotion']);
 
 const defaultOptions = {
@@ -598,6 +598,7 @@ const defaultOptions = {
   htfPoi: ['OB+BOS', 'OB+CHOCH', 'OB+BOS+CHOCH'],
   mtfStructure: ['RBD', 'DBR'],
   ltfEntry: ['BTC', 'OB', 'OTB'],
+  receivePoint: ['FirstOB', 'MiddleOB', 'LastOB'],
   keyZone: ['None', 'Premium', 'Discount', 'Equilibrium', 'Asia High/Low', 'London Open', 'NY AM'],
   ruleViolation: ['None', 'Early Entry', 'Late Entry', 'No Confirmation', 'Oversized Lot', 'Revenge Trade', 'Chased Price'],
   emotion: ['Calm', 'Confident', 'Anxious', 'Frustrated', 'Greedy', 'Impatient', 'Regretful']
@@ -618,6 +619,7 @@ const defaultOptionLabels = {
   htfPoi: 'HTF (5m)',
   mtfStructure: 'MTF (30s)',
   ltfEntry: 'LTF (5s)',
+  receivePoint: 'จุดรับ',
   keyZone: 'Key Zone',
   ruleViolation: 'Rule Violation',
   emotion: 'Emotion'
@@ -1710,8 +1712,8 @@ function TradeForm({ api, accountId, account, trades, options, optionLabels, ass
           <Field rawLabel label={optionLabels?.ltfEntry || defaultOptionLabels.ltfEntry}><Select options={options.ltfEntry} value={form.ltfEntry} onChange={(v) => set('ltfEntry', v)} /></Field>
         </div>
         <div className="checks receive-point-checks">
-          <span className="check-group-label">จุดรับ</span>
-          {['FirstOB', 'MiddleOB', 'LastOB'].map((point) => <label key={point}><input type="checkbox" checked={Array.isArray(form.receivePoint) && form.receivePoint.includes(point)} onChange={(e) => {
+          <span className="check-group-label">{optionLabels?.receivePoint || defaultOptionLabels.receivePoint}</span>
+          {(options.receivePoint || defaultOptions.receivePoint).map((point) => <label key={point}><input type="checkbox" checked={Array.isArray(form.receivePoint) && form.receivePoint.includes(point)} onChange={(e) => {
             const current = new Set(Array.isArray(form.receivePoint) ? form.receivePoint : []);
             if (e.target.checked) current.add(point); else current.delete(point);
             set('receivePoint', [...current]);
