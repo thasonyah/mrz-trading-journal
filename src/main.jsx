@@ -40,6 +40,9 @@ const translations = {
     History: 'ประวัติ',
     Calendar: 'ปฏิทิน',
     Analytics: 'วิเคราะห์',
+    'Candle Analysis': 'วิเคราะห์แท่งเทียน',
+    'Compare H4/H2 candles from TradingView CSV across markets. Files stay in your browser.': 'เปรียบเทียบแท่ง H4/H2 จาก CSV ของ TradingView ได้หลายสินทรัพย์ ไฟล์ประมวลผลในเบราว์เซอร์',
+    'Open full screen': 'เปิดเต็มหน้า',
     Playbook: 'เพลย์บุ๊ก',
     Settings: 'ตั้งค่า',
     Admin: 'แอดมิน',
@@ -1273,6 +1276,8 @@ function App() {
   const [currentUser, setCurrentUser] = useState(session?.user || null);
   const [viewUserId, setViewUserId] = useState(null);
   const [page, setPage] = useState('dashboard');
+  const [candleLabOpened, setCandleLabOpened] = useState(false);
+  useEffect(() => { if (page === 'candles') setCandleLabOpened(true); }, [page]);
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState(null);
   const [portfolioLimit, setPortfolioLimit] = useState(5);
@@ -1348,6 +1353,7 @@ function App() {
     ['history', History, 'History'],
     ['calendar', CalendarDays, 'Calendar'],
     ['analytics', BarChart3, 'Analytics'],
+    ['candles', Gauge, 'Candle Analysis'],
     ['journal', BookOpen, 'Playbook'],
     ['settings', Settings, 'Settings']
   ];
@@ -1379,6 +1385,10 @@ function App() {
       {page === 'history' && <HistoryPage api={scopedApi} accountId={accountId} account={account} trades={trades} setTrades={setTrades} setEditing={(t) => { setEditing(t); setPage('log'); }} setToast={setToast} />}
       {page === 'calendar' && <CalendarPage api={scopedApi} accountId={accountId} trades={trades} account={account} focusDate={calendarFocusDate} clearFocusDate={() => setCalendarFocusDate('')} setToast={setToast} />}
       {page === 'analytics' && <AnalyticsPage trades={trades} stats={stats} account={account} />}
+      {candleLabOpened && <section hidden={page !== 'candles'} className="candle-analysis-page">
+        <Header title="Candle Analysis" hint={t('Compare H4/H2 candles from TradingView CSV across markets. Files stay in your browser.')} action={<a className="candle-analysis-open" href="/candle-lab/index.html" target="_blank" rel="noopener noreferrer">{t('Open full screen')}</a>} />
+        <iframe className="candle-analysis-frame" title={t('Candle Analysis')} src="/candle-lab/index.html" />
+      </section>}
       {page === 'journal' && <JournalPage api={scopedApi} accountId={accountId} />}
       {page === 'settings' && <SettingsPage api={scopedApi} accounts={accounts} account={account} options={options} optionLabels={optionLabels} assets={assets} portfolioLimit={portfolioLimit} portfolioTemplates={portfolioTemplates} user={currentUser} setCurrentUser={setCurrentUser} reload={loadAll} setToast={setToast} />}
       {page === 'coach' && <CoachPage api={api} token={session?.token} currentUser={currentUser} viewUserId={viewUserId} setViewUserId={(id) => { setViewUserId(id); setPage('dashboard'); }} portfolioTemplates={portfolioTemplates} setPortfolioTemplates={setPortfolioTemplates} setToast={setToast} />}

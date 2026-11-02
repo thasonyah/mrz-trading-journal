@@ -29,10 +29,12 @@ const authWindowMs = 15 * 60 * 1000;
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  // Only the local CSV lab can be embedded by this Journal's own origin.
+  const isCandleLab = req.path.startsWith('/candle-lab/');
+  res.setHeader('X-Frame-Options', isCandleLab ? 'SAMEORIGIN' : 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https:; font-src 'self' data:; form-action 'self'");
+  res.setHeader('Content-Security-Policy', `default-src 'self'; base-uri 'self'; frame-ancestors ${isCandleLab ? "'self'" : "'none'"}; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https:; font-src 'self' data:; form-action 'self'`);
   if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
