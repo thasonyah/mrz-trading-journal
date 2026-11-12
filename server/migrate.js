@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { exec, get, isPostgres, run } from './db.js';
+import { exec, get, isMySql, isPostgres, run } from './db.js';
 
 const pgSchema = `
 CREATE TABLE IF NOT EXISTS users (
@@ -218,6 +218,12 @@ async function migrateSqlite() {
 if (isPostgres) {
   await exec(pgSchema);
   console.log('Postgres database is up to date');
+} else if (isMySql) {
+  const requiredTables = ['users', 'accounts', 'option_sets', 'asset_presets', 'trades', 'journal_notes', 'auth_tokens', 'portfolio_templates'];
+  for (const table of requiredTables) {
+    await get(`SELECT 1 FROM ${table} LIMIT 1`);
+  }
+  console.log('MySQL database is ready');
 } else {
   await migrateSqlite();
   console.log('SQLite database is up to date');
