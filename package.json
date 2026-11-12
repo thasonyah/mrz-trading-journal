@@ -23,6 +23,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.545.0",
+    "mysql2": "^3.24.6",
     "nodemailer": "^10.0.16",
     "pg": "^8.23.1",
     "react": "^19.1.1",
