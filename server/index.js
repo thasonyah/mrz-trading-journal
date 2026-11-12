@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { all, boolValue, get, insert, isPostgres, rowToTrade, run, transaction, upsertNoteSql, upsertOptionSql } from './db.js';
+import { all, boolValue, get, insert, isMySql, isPostgres, rowToTrade, run, transaction, upsertNoteSql, upsertOptionSql } from './db.js';
 import './migrate.js';
 
 const app = express();
@@ -1510,7 +1510,7 @@ app.get('/api/admin/system/status', auth, asyncHandler(async (req, res) => {
   };
   res.json({
     system: {
-      database: isPostgres ? 'Postgres' : 'SQLite',
+      database: isPostgres ? 'Postgres' : isMySql ? 'MySQL' : 'SQLite',
       production: process.env.NODE_ENV === 'production',
       publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
       demoAccount: demo || null,
