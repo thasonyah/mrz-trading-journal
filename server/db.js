@@ -2,8 +2,11 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
+import mysql from 'mysql2/promise';
 
-export const isPostgres = Boolean(process.env.DATABASE_URL);
+const databaseUrl = process.env.DATABASE_URL || '';
+export const isPostgres = databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://');
+export const isMySql = databaseUrl.startsWith('mysql://') || databaseUrl.startsWith('mariadb://');
 
 let sqlite;
 let pool;
@@ -12,6 +15,13 @@ if (isPostgres) {
   pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false
+  });
+} else if (isMySql) {
+  pool = mysql.createPool({
+    uri: process.env.DATABASE_URL,
+    waitForConnections: true,
+    connectionLimit: 5,
+    queueLimit: 0
   });
 } else {
   const dbPath = process.env.DATABASE_PATH || './data/trading-journal.sqlite';
@@ -26,8 +36,18 @@ function toPg(sql) {
   return sql.replace(/\?/g, () => `$${++index}`);
 }
 
+function toMySql(sql) {
+  return sql
+    .replace(/ON CONFLICT\(user_id, field_key\) DO UPDATE SET label=excluded\.label, options_json=excluded\.options_json/gi,
+      'ON DUPLICATE KEY UPDATE label=VALUES(label), options_json=VALUES(options_json)')
+    .replace(/ON CONFLICT\(template_key\) DO UPDATE SET/gi, 'ON DUPLICATE KEY UPDATE')
+    .replace(/ON CONFLICT\(user_id, account_id, title\) DO UPDATE SET content=excluded\.content, updated_at=CURRENT_TIMESTAMP/gi,
+      'ON DUPLICATE KEY UPDATE content=VALUES(content), updated_at=CURRENT_TIMESTAMP');
+}
+
 export async function exec(sql) {
   if (isPostgres) return pool.query(sql);
+  if (isMySql) return pool.query(toMySql(sql));
   sqlite.exec(sql);
   return null;
 }
@@ -37,6 +57,10 @@ export async function get(sql, params = []) {
     const result = await pool.query(toPg(sql), params);
     return result.rows[0];
   }
+  if (isMySql) {
+    const [rows] = await pool.execute(toMySql(sql), params);
+    return rows[0];
+  }
   return sqlite.prepare(sql).get(...params);
 }
 
@@ -45,6 +69,10 @@ export async function all(sql, params = []) {
     const result = await pool.query(toPg(sql), params);
     return result.rows;
   }
+  if (isMySql) {
+    const [rows] = await pool.execute(toMySql(sql), params);
+    return rows;
+  }
   return sqlite.prepare(sql).all(...params);
 }
 
@@ -52,6 +80,10 @@ export async function run(sql, params = []) {
   if (isPostgres) {
     const result = await pool.query(toPg(sql), params);
     return { changes: result.rowCount };
+  }
+  if (isMySql) {
+    const [result] = await pool.execute(toMySql(sql), params);
+    return { changes: result.affectedRows };
   }
   const result = sqlite.prepare(sql).run(...params);
   return { changes: result.changes, lastInsertRowid: result.lastInsertRowid };
@@ -62,40 +94,55 @@ export async function insert(sql, params = []) {
     const result = await pool.query(`${toPg(sql)} RETURNING id`, params);
     return result.rows[0].id;
   }
+  if (isMySql) {
+    const [result] = await pool.execute(toMySql(sql), params);
+    return result.insertId;
+  }
   const result = sqlite.prepare(sql).run(...params);
   return result.lastInsertRowid;
 }
 
 export async function transaction(callback) {
-  if (!isPostgres) {
+  if (!isPostgres && !isMySql) {
     return callback({ get, all, run, insert });
   }
-  const client = await pool.connect();
+  const client = isPostgres ? await pool.connect() : await pool.getConnection();
+  const query = async (sql, params = []) => {
+    if (isPostgres) return client.query(toPg(sql), params);
+    return client.execute(toMySql(sql), params);
+  };
   try {
-    await client.query('BEGIN');
+    if (isPostgres) await client.query('BEGIN');
+    else await client.beginTransaction();
     const tx = {
       get: async (sql, params = []) => {
-        const result = await client.query(toPg(sql), params);
-        return result.rows[0];
+        const result = await query(sql, params);
+        return isPostgres ? result.rows[0] : result[0][0];
       },
       all: async (sql, params = []) => {
-        const result = await client.query(toPg(sql), params);
-        return result.rows;
+        const result = await query(sql, params);
+        return isPostgres ? result.rows : result[0];
       },
       run: async (sql, params = []) => {
-        const result = await client.query(toPg(sql), params);
-        return { changes: result.rowCount };
+        const result = await query(sql, params);
+        return { changes: isPostgres ? result.rowCount : result[0].affectedRows };
       },
       insert: async (sql, params = []) => {
-        const result = await client.query(`${toPg(sql)} RETURNING id`, params);
-        return result.rows[0].id;
+        if (isPostgres) {
+          const result = await client.query(`${toPg(sql)} RETURNING id`, params);
+          return result.rows[0].id;
+        }
+        const [result] = await client.execute(toMySql(sql), params);
+        return result.insertId;
       }
     };
     const value = await callback(tx);
-    await client.query('COMMIT');
+    if (isPostgres) await client.query('COMMIT');
+    else await client.commit();
     return value;
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (isPostgres) await client.query('ROLLBACK');
+    else await client.rollback();
     throw error;
   } finally {
     client.release();
